@@ -3,85 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>จัดการเงินออม 📋</title>
+    <title>สถานะการออม 📋</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #f4f7f6; font-family: 'Kanit', sans-serif; }
-        .card-bill { border-radius: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 12px; }
-        .badge-pending { background-color: #ff4d4d; }
-        .badge-paid { background-color: #28a745; }
-        .btn-action { border-radius: 8px; font-size: 0.85rem; }
-    </style>
 </head>
 <body class="p-3">
-    <div class="container">
-        <h4 class="fw-bold mb-4">📋 รายการออมของเฮีย</h4>
-        <div id="bill-container">
-            <p class="text-center text-muted">กำลังตามหาบิลให้เฮียอยู่เมี๊ยว...</p>
-        </div>
-    </div>
+    <h4 class="fw-bold mb-4">📊 เช็กคนจ่าย/ไม่จ่าย</h4>
+    <div id="bill-list">กำลังโหลดข้อมูลเมี๊ยว...</div>
 
     <script>
-        const SUPABASE_URL = "https://your-project.supabase.co"; // ก๊อปจาก Supabase เฮีย
-        const SUPABASE_KEY = "your-anon-key"; // ก๊อปจาก Supabase เฮีย
+        const SUPABASE_URL = "https://your-project.supabase.co"; // ใส่ของเฮีย
+        const SUPABASE_KEY = "your-anon-key"; // ใส่ของเฮีย
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        async function init() {
+        async function loadBills() {
             await liff.init({ liffId: "2009693749-SfmWsP0l" });
-            if (!liff.isLoggedIn()) { liff.login(); }
-            renderBills();
-        }
-
-        async function renderBills() {
-            const profile = await liff.getProfile();
-            const { data: bills, error } = await supabaseClient
-                .from('bills')
-                .select('*')
-                .eq('created_by', profile.userId)
-                .order('next_due', { ascending: true });
-
-            const container = document.getElementById('bill-container');
+            const { data: bills } = await supabaseClient.from('bills').select('*').order('created_at', {ascending: false});
+            
+            const container = document.getElementById('bill-list');
             container.innerHTML = '';
 
             bills.forEach(bill => {
                 const isPaid = bill.status === 'paid';
                 container.innerHTML += `
-                    <div class="card card-bill p-3">
-                        <div class="d-flex justify-content-between align-items-start">
+                    <div class="card p-3 mb-3" style="border-left: 5px solid ${isPaid ? '#28a745' : '#dc3545'}">
+                        <div class="d-flex justify-content-between">
                             <div>
-                                <span class="badge ${isPaid ? 'badge-paid' : 'badge-pending'} mb-2">
-                                    ${isPaid ? 'จ่ายแล้ว ✨' : 'ค้างชำระ ⚠️'}
-                                </span>
-                                <h6 class="fw-bold mb-1">${bill.bill_name}</h6>
-                                <p class="text-muted small mb-0">ยอด: ${bill.per_person} บาท</p>
-                                <p class="text-muted small">นัดชำระ: ${bill.next_due}</p>
+                                <h6 class="fw-bold">${bill.bill_name}</h6>
+                                <p class="mb-1 small">👤 สมาชิก: ${bill.member_name}</p>
+                                <p class="mb-0 small">💰 งวดละ: ${bill.per_person} บาท</p>
                             </div>
-                            <div class="d-flex flex-column gap-2">
-                                <button class="btn btn-outline-danger btn-action" onclick="deleteBill(${bill.id})">ลบ</button>
-                                ${!isPaid ? `<button class="btn btn-success btn-action" onclick="markAsPaid(${bill.id})">จ่าย</button>` : ''}
+                            <div class="text-end">
+                                <span class="badge ${isPaid ? 'bg-success' : 'bg-danger'}">${isPaid ? 'จ่ายแล้ว ✅' : 'ค้างชำระ ❌'}</span>
+                                <div class="mt-2"><button onclick="deleteBill(${bill.id})" class="btn btn-sm btn-outline-secondary">ลบ</button></div>
                             </div>
                         </div>
                     </div>
                 `;
             });
         }
-
         async function deleteBill(id) {
-            if(confirm("จะลบรายการนี้จริงๆ หรอเฮีย?")) {
+            if(confirm('ลบรายการนี้ไหมเมี๊ยว?')) {
                 await supabaseClient.from('bills').delete().eq('id', id);
-                renderBills();
+                location.reload();
             }
         }
-
-        async function markAsPaid(id) {
-            await supabaseClient.from('bills').update({ status: 'paid' }).eq('id', id);
-            alert("บันทึกการจ่ายเรียบร้อยเมี๊ยว!");
-            renderBills();
-        }
-
-        init();
+        loadBills();
     </script>
 </body>
 </html>

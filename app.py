@@ -29,7 +29,7 @@ def serve_index():
 def serve_list():
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงิน (Cron-job ทุก 30 นาที) ---
+# --- 🚀 ระบบทวงเงิน (ทวงไปหา target_user_id) ---
 @app.route('/check_bills')
 def check_bills():
     now = datetime.now()
@@ -43,27 +43,29 @@ def check_bills():
             target_dt = datetime.combine(now.date(), remind_time)
             
             if target_dt <= now < (target_dt + timedelta(minutes=30)):
-                # แจ้งเตือนแบบ Flex Message (มีปุ่มรายละเอียดและปุ่มจ่าย)
+                # ส่งหา target_user_id (คนที่จะโดนทวง)
+                receiver_id = bill.get('target_user_id') or bill['created_by']
+                
                 flex_reminder = {
                     "type": "bubble",
-                    "header": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "🔔 ได้เวลาออมเงินเมี๊ยว!", "weight": "bold", "color": "#1DB446"}]},
+                    "header": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "🔔 ถึงเวลาออมเงินเมี๊ยว!", "weight": "bold", "color": "#1DB446"}]},
                     "body": {"type": "box", "layout": "vertical", "contents": [
                         {"type": "text", "text": f"🎯 รายการ: {bill['bill_name']}", "size": "md", "weight": "bold"},
                         {"type": "text", "text": f"💰 ยอด: {bill['per_person']:,.2f} บาท", "size": "xl", "margin": "md", "color": "#111111"},
-                        {"type": "text", "text": f"👤 ของ: {bill.get('member_name', 'ไม่ได้ระบุ')}", "size": "sm", "color": "#888888"}
+                        {"type": "text", "text": f"👤 ของ: {bill['member_name']}", "size": "sm", "color": "#888888"}
                     ]},
                     "footer": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": [
                         {"type": "button", "style": "primary", "color": "#1DB446", "action": {
-                            "type": "postback", "label": "✅ จ่ายแล้วเมี๊ยว", "data": f"action=pay&bill_id={bill['id']}&name={bill['bill_name']}"
+                            "type": "postback", "label": "✅ ชำระเงินแล้วเมี๊ยว", "data": f"action=pay&bill_id={bill['id']}&name={bill['bill_name']}"
                         }},
                         {"type": "button", "style": "link", "height": "sm", "action": {
                             "type": "uri", "label": "📋 ดูรายการทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
                         }}
                     ]}
                 }
-                line_bot_api.push_message(bill['created_by'], FlexSendMessage(alt_text="คุ้มมงทวงเงิน!", contents=flex_reminder))
+                line_bot_api.push_message(receiver_id, FlexSendMessage(alt_text="ทวงเงินออม!", contents=flex_reminder))
                 
-                # อัปเดตงวดถัดไปทันที (ป้องกันทวงซ้ำในรอบ 30 นาที)
+                # อัปเดตงวดถัดไป
                 current_due = datetime.strptime(bill['next_due'], '%Y-%m-%d')
                 unit = bill.get('freq_unit', '7d')
                 if 'd' in unit:
@@ -73,7 +75,7 @@ def check_bills():
                 
                 supabase.table("bills").update({"next_due": next_due.date().isoformat(), "status": "pending"}).eq("id", bill['id']).execute()
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error in check_bills: {e}")
             
     return "Checked", 200
 
@@ -95,12 +97,23 @@ def handle_postback(event):
         bill_id = params['bill_id']
         bill_name = params.get('name', 'รายการออม')
         supabase.table("bills").update({"status": "paid"}).eq("id", bill_id).execute()
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 บันทึกว่าเฮียจ่าย '{bill_name}' เรียบร้อย! เก่งมากเมี๊ยว! 🐾"))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 รับทราบเมี๊ยว! บันทึกว่าเฮียจ่าย '{bill_name}' เรียบร้อย!"))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text
     user_id = event.source.user_id
+    group_id = getattr(event.source, 'group_id', 'personal') # ดึง ID กลุ่ม
+
+    # --- 🤫 ระบบจำสมาชิก (ใครพิมพ์มา จำชื่อหมด!) ---
+    try:
+        profile = line_bot_api.get_profile(user_id)
+        supabase.table("group_members").upsert({
+            "group_id": group_id,
+            "user_id": user_id,
+            "display_name": profile.display_name
+        }).execute()
+    except: pass
 
     if text == "เมี๊ยว":
         flex_menu = {
@@ -108,8 +121,8 @@ def handle_message(event):
             "hero": {"type": "image", "url": "https://img5.pic.in.th/file/secure-sv1/kumamong_header.png", "size": "full", "aspectRatio": "20:13", "aspectMode": "cover"},
             "body": {"type": "box", "layout": "vertical", "contents": [
                 {"type": "text", "text": "🐾 คุ้มมงยินดีบริการเมี๊ยว!", "weight": "bold", "size": "lg", "align": "center"},
-                {"type": "button", "style": "primary", "color": "#1DB446", "margin": "md", "action": {"type": "uri", "label": "💰 ออมเงินใหม่", "uri": f"https://liff.line.me/{MY_LIFF_ID}"}},
-                {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "uri", "label": "📊 ดูรายการออม (จัดการ)", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
+                {"type": "button", "style": "primary", "color": "#1DB446", "margin": "md", "action": {"type": "uri", "label": "💰 ออมเงินใหม่", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
+                {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "uri", "label": "📊 เช็กสถานะ จ่าย/ไม่จ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
             ]}
         }
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="คุ้มมงมาแล้ว!", contents=flex_menu))
@@ -123,17 +136,18 @@ def handle_message(event):
             unit = lines[4].split(': ')[1]
             start = lines[5].split(': ')[1]
             time = lines[6].split(': ')[1]
-            member = lines[7].split(': ')[1] # รับชื่อสมาชิก
+            target_id = lines[7].split(': ')[1] # ID คนที่จะโดนทวง
+            target_name = lines[8].split(': ')[1] # ชื่อคนที่จะโดนทวง
 
             per_person = round((total / 2) / count, 2)
             data = {
                 "bill_name": goal, "total_amount": total, "per_person": per_person,
                 "status": "pending", "created_by": user_id,
                 "freq_unit": unit, "next_due": start, "remind_time": time,
-                "member_name": member
+                "target_user_id": target_id, "member_name": target_name
             }
             supabase.table("bills").insert(data).execute()
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' ของ {member} แล้ว!\n💰 งวดละ: {per_person:,.2f} บาท\nคุ้มมงจะคอยสะกิดนะเมี๊ยว!"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' ของ {target_name} เรียบร้อย! เดี๋ยวคุ้มมงจัดการทวงให้เมี๊ยว!"))
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"พลาด: {str(e)}"))
 
