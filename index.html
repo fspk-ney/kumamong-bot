@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>คุ้มมง - ตั้งเป้าออมกลุ่ม 🐾</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 15px; background-color: #f0f2f5; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 2px solid #00b900; }
+        h2 { text-align: center; color: #00b900; margin-bottom: 20px; }
+        label { font-weight: bold; display: block; margin-top: 15px; font-size: 14px; }
+        input, select { width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #ddd; border-radius: 12px; box-sizing: border-box; font-size: 16px; }
+        .info-box { background: #e8f5e9; padding: 10px; border-radius: 10px; margin-top: 15px; font-size: 13px; color: #2e7d32; border-left: 5px solid #00b900; }
+        button { width: 100%; background: #00b900; color: white; border: none; padding: 18px; border-radius: 12px; font-weight: bold; font-size: 18px; margin-top: 25px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,185,0,0.3); }
+        button:active { transform: scale(0.98); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>💰 ตั้งเป้าออมเงินกลุ่ม</h2>
+        
+        <label>📍 ชื่อเป้าหมาย:</label>
+        <input type="text" id="tripName" placeholder="เช่น ทริปเที่ยวญี่ปุ่น, เก็บออมคู่">
+        
+        <label>💵 ยอดรวมที่ต้องการ (บาท):</label>
+        <input type="number" id="totalAmount" placeholder="ยอดรวมทั้งหมด">
+        
+        <label>📅 ความถี่การเก็บเงิน:</label>
+        <select id="freq">
+            <option value="ทุก 2 อาทิตย์">ทุก 2 อาทิตย์ (รายปักษ์)</option>
+            <option value="ทุก 1 เดือน">ทุก 1 เดือน (รายเดือน)</option>
+        </select>
+
+        <div class="info-box">
+            🐾 <b>คุ้มมงโน้ต:</b> ระบบจะล็อคการออมที่ <b>36 งวด</b> นะเมี๊ยว! <br>
+            โดยจะหารจำนวนสมาชิกที่อยู่ในกลุ่มนี้ (หรือคนที่กดเข้าร่วม)
+        </div>
+        
+        <button onclick="sendGoal()">สร้างบิลออมเงินเลยเมี๊ยว! 🐾</button>
+    </div>
+
+    <script>
+        async function main() {
+            // ใส่ ID ของเฮียให้แล้วเมี๊ยว!
+            await liff.init({ liffId: "2009693749-SfmWsP0l" });
+            if (!liff.isLoggedIn()) {
+                liff.login();
+            }
+        }
+        main();
+
+        function sendGoal() {
+            const name = document.getElementById('tripName').value;
+            const amount = document.getElementById('totalAmount').value;
+            const freq = document.getElementById('freq').value;
+            
+            if (!name || !amount) {
+                alert("กรอกข้อมูลให้ครบก่อนนะเฮีย!");
+                return;
+            }
+
+            // ส่งข้อมูลกลับเข้าแชทให้บอตประมวลผลต่อ
+            liff.sendMessages([{
+                'type': 'text',
+                'text': `[คำสั่งออมเงิน]\nเป้าหมาย: ${name}\nยอดรวม: ${amount}\nความถี่: ${freq}\nจำนวน: 36 งวด`
+            }]).then(() => {
+                liff.closeWindow();
+            }).catch((err) => {
+                console.error('Error:', err);
+            });
+        }
+    </script>
+</body>
+</html>
