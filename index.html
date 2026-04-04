@@ -81,7 +81,7 @@
 
         async function main() {
             try {
-                // 1. เริ่มต้น LIFF (ใส่ ID ของเฮียเป๊ะๆ)
+                // 1. เริ่มต้น LIFF
                 await liff.init({ liffId: "2009693749-SfmWsP0l" });
 
                 // 2. บังคับ Login
@@ -93,7 +93,7 @@
                 // ตั้งวันที่เริ่มต้นเป็นวันนี้
                 document.getElementById('start').valueAsDate = new Date();
                 
-                // 3. ดึง groupId จาก URL (ที่บอทส่งมาให้)
+                // 3. ดึง groupId จาก URL
                 const params = new URLSearchParams(window.location.search);
                 const gid = params.get('groupId') || 'personal';
 
@@ -109,9 +109,15 @@
                     console.error("Supabase Error:", error);
                     select.innerHTML = '<option value="">โหลดข้อมูลไม่สำเร็จ... (Error SQL)</option>';
                 } else if(members && members.length > 0) {
+                    // --- ส่วนที่ปรับปรุง: กรองรายชื่อไม่ให้ซ้ำ ---
                     select.innerHTML = '<option value="">-- จิ้มเลือกชื่อเพื่อน --</option>';
+                    const seenIds = new Set();
+                    
                     members.forEach(m => {
-                        select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
+                        if (!seenIds.has(m.user_id)) {
+                            seenIds.add(m.user_id);
+                            select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
+                        }
                     });
                 } else {
                     select.innerHTML = '<option value="">ยังไม่มีข้อมูลเพื่อน (ให้เพื่อนพิมพ์ เมี๊ยว)</option>';
