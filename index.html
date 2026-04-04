@@ -8,102 +8,65 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f0f2f5; font-family: 'Kanit', sans-serif; color: #333; }
+        body { background-color: #f0f2f5; font-family: 'Kanit', sans-serif; }
         .card { border-radius: 25px; border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .btn-kumamong { background-color: #1DB446; color: white; border-radius: 15px; font-weight: 600; padding: 12px; transition: 0.3s; }
-        .btn-kumamong:hover { background-color: #169a3a; color: white; transform: translateY(-2px); }
-        .form-label { font-weight: 600; color: #555; font-size: 0.9rem; }
-        .header-img { width: 80px; display: block; margin: 0 auto 15px; }
+        .btn-kumamong { background-color: #1DB446; color: white; border-radius: 15px; font-weight: 600; padding: 12px; }
     </style>
 </head>
 <body class="p-3">
     <div class="container mt-2">
         <div class="card p-4">
-            <img src="https://img5.pic.in.th/file/secure-sv1/kumamong_icon.png" alt="Kumamong" class="header-img">
             <h4 class="text-center mb-4">💰 สร้างรายการออมใหม่</h4>
-            
             <div class="mb-3">
                 <label class="form-label">🎯 ชื่อรายการออม</label>
-                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ซื้อ PS5">
+                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น">
             </div>
-
             <div class="mb-3">
-                <label class="form-label">💵 ยอดเงินรวมเป้าหมาย (บาท)</label>
-                <input type="number" id="total" class="form-control" placeholder="0.00">
-                <div class="form-text text-muted">*ระบบจะคำนวณยอดหาร 2 ให้เองเมี๊ยว</div>
+                <label class="form-label">👤 ชื่อคนจ่าย (สมาชิก)</label>
+                <input type="text" id="member_name" class="form-control" placeholder="เช่น เฮียนท">
             </div>
-
+            <div class="mb-3">
+                <label class="form-label">💵 ยอดรวมเป้าหมาย (บาท)</label>
+                <input type="number" id="total" class="form-control" placeholder="0.00">
+            </div>
             <div class="row">
-                <div class="col-6 mb-3">
-                    <label class="form-label">🔢 จำนวนงวด</label>
-                    <input type="number" id="count" class="form-control" value="10">
-                </div>
+                <div class="col-6 mb-3"><label class="form-label">🔢 จำนวนงวด</label><input type="number" id="count" class="form-control" value="10"></div>
                 <div class="col-6 mb-3">
                     <label class="form-label">🔄 ความถี่</label>
                     <select id="freq_unit" class="form-select">
-                        <option value="7d">ทุก 1 อาทิตย์</option>
-                        <option value="14d">ทุก 2 อาทิตย์</option>
-                        <option value="21d">ทุก 3 อาทิตย์</option>
-                        <option value="1m">ทุก 1 เดือน</option>
-                        <option value="2m">ทุก 2 เดือน</option>
-                        <option value="3m">ทุก 3 เดือน</option>
+                        <option value="7d">ทุก 1 อาทิตย์</option><option value="1m">ทุก 1 เดือน</option>
                     </select>
                 </div>
             </div>
-
             <div class="row">
-                <div class="col-6 mb-3">
-                    <label class="form-label">📅 เริ่มงวดแรก</label>
-                    <input type="date" id="start_date" class="form-control">
-                </div>
-                <div class="col-6 mb-4">
-                    <label class="form-label">⏰ เวลาที่ทวง</label>
-                    <input type="time" id="remind_time" class="form-control" value="08:00">
-                </div>
+                <div class="col-6 mb-3"><label class="form-label">📅 เริ่มงวดแรก</label><input type="date" id="start_date" class="form-control"></div>
+                <div class="col-6 mb-4"><label class="form-label">⏰ เวลาที่ทวง</label><input type="time" id="remind_time" class="form-control" value="08:00"></div>
             </div>
-
-            <button class="btn btn-kumamong w-100 mb-2" onclick="confirmBill()">บันทึกรายการออม</button>
-            <p class="text-center text-muted small">คุ้มมงจะคอยทวงตามเวลาที่เลือกนะเมี๊ยว 🐾</p>
+            <button class="btn btn-kumamong w-100" onclick="confirmBill()">บันทึกรายการออม</button>
         </div>
     </div>
 
     <script>
-        // เริ่มต้น LIFF
         async function main() {
-            try {
-                await liff.init({ liffId: "2009693749-SfmWsP0l" });
-                // ตั้งค่าวันปัจจุบันเป็นค่าเริ่มต้น
-                document.getElementById('start_date').valueAsDate = new Date();
-            } catch (err) {
-                console.error("LIFF Init failed", err);
-            }
+            await liff.init({ liffId: "2009693749-SfmWsP0l" });
+            document.getElementById('start_date').valueAsDate = new Date();
         }
-
         function confirmBill() {
             const goal = document.getElementById('goal').value;
+            const member = document.getElementById('member_name').value;
             const total = document.getElementById('total').value;
             const count = document.getElementById('count').value;
             const unit = document.getElementById('freq_unit').value;
             const start = document.getElementById('start_date').value;
             const time = document.getElementById('remind_time').value;
 
-            // ตรวจสอบข้อมูล
-            if (!goal || !total || !count || !start || !time) {
-                return alert('เฮียลืมกรอกข้อมูลบางช่องเปล่าเมี๊ยว? 🐾');
-            }
+            if (!goal || !member || !total || !start) return alert('กรอกข้อมูลให้ครบเมี๊ยว!');
 
-            // ส่งข้อมูลกลับไปยัง LINE Chat ในรูปแบบคำสั่งที่บอตรู้จัก
             liff.sendMessages([{
                 type: 'text',
-                text: `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}`
-            }]).then(() => {
-                liff.closeWindow(); // ปิดหน้าต่าง LIFF ทันทีเมื่อส่งเสร็จ
-            }).catch((err) => {
-                console.error("Send message failed", err);
-                alert("ส่งข้อมูลไม่สำเร็จเมี๊ยว!");
-            });
+                text: `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nสมาชิก: ${member}`
+            }]).then(() => liff.closeWindow());
         }
-
         main();
     </script>
 </body>

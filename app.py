@@ -25,12 +25,15 @@ MY_LIFF_ID = "2009693749-SfmWsP0l"
 def serve_index():
     return send_from_directory('.', 'index.html')
 
-# --- 🚀 ระบบทวงเงินอัจฉริยะ (เรียกโดย Cron-job ทุก 30 นาที) ---
+@app.route('/list')
+def serve_list():
+    return send_from_directory('.', 'list.html')
+
+# --- 🚀 ระบบทวงเงิน (Cron-job ทุก 30 นาที) ---
 @app.route('/check_bills')
 def check_bills():
     now = datetime.now()
     today = now.date().isoformat()
-    
     res = supabase.table("bills").select("*").eq("next_due", today).execute()
     
     for bill in res.data:
@@ -39,25 +42,28 @@ def check_bills():
             remind_time = datetime.strptime(remind_str, "%H:%M").time()
             target_dt = datetime.combine(now.date(), remind_time)
             
-            # ถ้าถึงเวลาทวง (ภายในหน้าต่าง 30 นาที)
             if target_dt <= now < (target_dt + timedelta(minutes=30)):
-                # ส่ง Flex Message พร้อมปุ่มยืนยันการจ่าย
+                # แจ้งเตือนแบบ Flex Message (มีปุ่มรายละเอียดและปุ่มจ่าย)
                 flex_reminder = {
                     "type": "bubble",
-                    "header": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "🔔 ถึงเวลาออมเงิน!", "weight": "bold", "color": "#1DB446"}]},
+                    "header": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "🔔 ได้เวลาออมเงินเมี๊ยว!", "weight": "bold", "color": "#1DB446"}]},
                     "body": {"type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": f"🎯 รายการ: {bill['bill_name']}", "size": "sm", "weight": "bold"},
-                        {"type": "text", "text": f"💰 ยอด: {bill['per_person']:,.2f} บาท", "size": "xl", "margin": "md", "color": "#111111"}
+                        {"type": "text", "text": f"🎯 รายการ: {bill['bill_name']}", "size": "md", "weight": "bold"},
+                        {"type": "text", "text": f"💰 ยอด: {bill['per_person']:,.2f} บาท", "size": "xl", "margin": "md", "color": "#111111"},
+                        {"type": "text", "text": f"👤 ของ: {bill.get('member_name', 'ไม่ได้ระบุ')}", "size": "sm", "color": "#888888"}
                     ]},
-                    "footer": {"type": "box", "layout": "vertical", "contents": [
+                    "footer": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": [
                         {"type": "button", "style": "primary", "color": "#1DB446", "action": {
                             "type": "postback", "label": "✅ จ่ายแล้วเมี๊ยว", "data": f"action=pay&bill_id={bill['id']}&name={bill['bill_name']}"
+                        }},
+                        {"type": "button", "style": "link", "height": "sm", "action": {
+                            "type": "uri", "label": "📋 ดูรายการทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
                         }}
                     ]}
                 }
-                line_bot_api.push_message(bill['created_by'], FlexSendMessage(alt_text="ทวงเงินออมเมี๊ยว!", contents=flex_reminder))
+                line_bot_api.push_message(bill['created_by'], FlexSendMessage(alt_text="คุ้มมงทวงเงิน!", contents=flex_reminder))
                 
-                # คำนวณงวดถัดไป และรีเซ็ต Status เป็น pending สำหรับงวดหน้า
+                # อัปเดตงวดถัดไปทันที (ป้องกันทวงซ้ำในรอบ 30 นาที)
                 current_due = datetime.strptime(bill['next_due'], '%Y-%m-%d')
                 unit = bill.get('freq_unit', '7d')
                 if 'd' in unit:
@@ -65,11 +71,7 @@ def check_bills():
                 elif 'm' in unit:
                     next_due = current_due + relativedelta(months=int(unit.replace('m', '')))
                 
-                # อัปเดตวันที่ และคืนค่าสถานะเป็น pending
-                supabase.table("bills").update({
-                    "next_due": next_due.date().isoformat(),
-                    "status": "pending" 
-                }).eq("id", bill['id']).execute()
+                supabase.table("bills").update({"next_due": next_due.date().isoformat(), "status": "pending"}).eq("id", bill['id']).execute()
         except Exception as e:
             print(f"Error: {e}")
             
@@ -85,7 +87,6 @@ def callback():
         abort(400)
     return 'OK'
 
-# --- 🎯 จัดการการกดปุ่ม (จ่ายแล้ว) ---
 @handler.add(PostbackEvent)
 def handle_postback(event):
     data = event.postback.data
@@ -93,14 +94,8 @@ def handle_postback(event):
         params = dict(x.split('=') for x in data.split('&'))
         bill_id = params['bill_id']
         bill_name = params.get('name', 'รายการออม')
-        
-        # อัปเดตสถานะเป็น paid ใน Supabase
         supabase.table("bills").update({"status": "paid"}).eq("id", bill_id).execute()
-        
-        line_bot_api.reply_message(
-            event.reply_token, 
-            TextSendMessage(text=f"🎉 รับทราบเมี๊ยว! บันทึกว่าเฮียจ่ายรายการ '{bill_name}' เรียบร้อยแล้ว! เก่งมากเมี๊ยว! 🐾")
-        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 บันทึกว่าเฮียจ่าย '{bill_name}' เรียบร้อย! เก่งมากเมี๊ยว! 🐾"))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -114,24 +109,10 @@ def handle_message(event):
             "body": {"type": "box", "layout": "vertical", "contents": [
                 {"type": "text", "text": "🐾 คุ้มมงยินดีบริการเมี๊ยว!", "weight": "bold", "size": "lg", "align": "center"},
                 {"type": "button", "style": "primary", "color": "#1DB446", "margin": "md", "action": {"type": "uri", "label": "💰 ออมเงินใหม่", "uri": f"https://liff.line.me/{MY_LIFF_ID}"}},
-                {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "message", "label": "📊 ดูรายการออม", "text": "ดูรายการออม"}}
+                {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "uri", "label": "📊 ดูรายการออม (จัดการ)", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
             ]}
         }
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="คุ้มมงมาแล้ว!", contents=flex_menu))
-
-    elif text == "ดูรายการออม":
-        # ดึงข้อมูลบิลทั้งหมดของผู้ใช้
-        res = supabase.table("bills").select("*").eq("created_by", user_id).execute()
-        if not res.data:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="ยังไม่มีรายการออมเลยเมี๊ยว! เริ่มออมกันเถอะ!"))
-            return
-
-        msg = "📋 รายการออมของเฮีย:\n"
-        for bill in res.data:
-            status_icon = "✅" if bill['status'] == "paid" else "❌"
-            msg += f"\n{status_icon} {bill['bill_name']}\n💰 คนละ: {bill['per_person']:,.2f} บาท\n📅 นัดหน้า: {bill['next_due']}\n---"
-        
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
     elif "[คำสั่งออมเงิน]" in text:
         try:
@@ -142,15 +123,17 @@ def handle_message(event):
             unit = lines[4].split(': ')[1]
             start = lines[5].split(': ')[1]
             time = lines[6].split(': ')[1]
+            member = lines[7].split(': ')[1] # รับชื่อสมาชิก
 
             per_person = round((total / 2) / count, 2)
             data = {
                 "bill_name": goal, "total_amount": total, "per_person": per_person,
                 "status": "pending", "created_by": user_id,
-                "freq_unit": unit, "next_due": start, "remind_time": time
+                "freq_unit": unit, "next_due": start, "remind_time": time,
+                "member_name": member
             }
             supabase.table("bills").insert(data).execute()
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' แล้ว!\n💰 ออมงวดละ: {per_person:,.2f} บาท\n⏰ ทวงตอน: {time}\nคุ้มมงจะคอยสะกิดนะเมี๊ยว!"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' ของ {member} แล้ว!\n💰 งวดละ: {per_person:,.2f} บาท\nคุ้มมงจะคอยสะกิดนะเมี๊ยว!"))
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"พลาด: {str(e)}"))
 
