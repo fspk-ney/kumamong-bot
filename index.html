@@ -11,13 +11,18 @@
     <style>
         body { background-color: #f8f9fa; font-family: 'Kanit', sans-serif; }
         .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .btn-success { background-color: #1DB446; border: none; border-radius: 12px; padding: 12px; font-weight: 600; }
-        /* สไตล์เพิ่มเติมเพื่อให้ดูพรีเมียมขึ้น */
+        .btn-success { background-color: #1DB446; border: none; border-radius: 12px; padding: 12px; font-weight: 600; transition: 0.3s; }
+        .btn-success:hover { background-color: #169e3d; transform: translateY(-2px); }
         .form-label { font-weight: 600; font-size: 0.9rem; color: #444; }
-        .form-control, .form-select { border-radius: 10px; border: 1px solid #ddd; }
+        .form-control, .form-select { border-radius: 10px; border: 1px solid #ddd; padding: 10px; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
     </style>
 </head>
 <body class="p-3">
+    <div id="loader" class="loading-overlay">
+        <div class="spinner-border text-success" role="status"></div>
+    </div>
+
     <div class="container">
         <div class="card p-4">
             <h4 class="text-center fw-bold mb-4">💰 สร้างรายการออมใหม่</h4>
@@ -27,17 +32,17 @@
                 <select id="target_user" class="form-select">
                     <option value="">กำลังโหลดรายชื่อเพื่อน...</option>
                 </select>
-                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "เมี๊ยว" ในกลุ่มก่อน</small>
+                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "เมี๊ยว" ในกลุ่มก่อนนะเมี๊ยว</small>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">🎯 ชื่อรายการออม</label>
-                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น">
+                <label class="form-label">🎯 ชื่อรายการออม (ทริป/เป้าหมาย)</label>
+                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ค่าเทอม">
             </div>
 
             <div class="mb-3">
                 <label class="form-label">💵 ยอดรวมเป้าหมาย (บาท)</label>
-                <input type="number" id="total" class="form-control" placeholder="0.00">
+                <input type="number" id="total" class="form-control" placeholder="0.00" inputmode="decimal">
             </div>
 
             <div class="row">
@@ -50,6 +55,7 @@
                     <select id="unit" class="form-select">
                         <option value="7d">ทุกอาทิตย์</option>
                         <option value="1m">ทุกเดือน</option>
+                        <option value="1d">ทุกวัน (สายโหด)</option>
                     </select>
                 </div>
             </div>
@@ -65,30 +71,33 @@
                 </div>
             </div>
 
-            <button class="btn btn-success w-100 shadow-sm" onclick="confirmSave()">บันทึกรายการออมเมี๊ยว!</button>
+            <button id="saveBtn" class="btn btn-success w-100 shadow-sm" onclick="confirmSave()">บันทึกรายการออมเมี๊ยว!</button>
         </div>
     </div>
 
     <script>
+        // --- ตั้งค่า Supabase ---
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
 
         async function main() {
             try {
-                // 1. เริ่มต้น LIFF
+                // 1. เริ่มต้น LIFF (ใส่ ID ของเฮียเป๊ะๆ)
                 await liff.init({ liffId: "2009693749-SfmWsP0l" });
 
-                // 2. เช็กว่า Login หรือยัง (แก้ปัญหา 400 Bad Request สำหรับเพื่อนคนอื่น)
+                // 2. บังคับ Login
                 if (!liff.isLoggedIn()) {
                     liff.login();
                     return;
                 }
 
+                // ตั้งวันที่เริ่มต้นเป็นวันนี้
                 document.getElementById('start').valueAsDate = new Date();
                 
+                // 3. ดึง groupId จาก URL (ที่บอทส่งมาให้)
                 const params = new URLSearchParams(window.location.search);
                 const gid = params.get('groupId') || 'personal';
 
-                // 3. ดึงสมาชิกจากกลุ่มนี้ใน Supabase
+                // 4. ดึงสมาชิกจากกลุ่มนี้ใน Supabase
                 const { data: members, error } = await client
                     .from('group_members')
                     .select('*')
@@ -97,19 +106,22 @@
                 const select = document.getElementById('target_user');
                 
                 if (error) {
-                    select.innerHTML = '<option value="">โหลดข้อมูลไม่สำเร็จ...</option>';
-                    return;
-                }
-
-                select.innerHTML = '<option value="">-- จิ้มเลือกชื่อเพื่อน --</option>';
-                if(members && members.length > 0) {
+                    console.error("Supabase Error:", error);
+                    select.innerHTML = '<option value="">โหลดข้อมูลไม่สำเร็จ... (Error SQL)</option>';
+                } else if(members && members.length > 0) {
+                    select.innerHTML = '<option value="">-- จิ้มเลือกชื่อเพื่อน --</option>';
                     members.forEach(m => {
                         select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
                     });
                 } else {
                     select.innerHTML = '<option value="">ยังไม่มีข้อมูลเพื่อน (ให้เพื่อนพิมพ์ เมี๊ยว)</option>';
                 }
+
+                // ปิดตัวโหลด
+                document.getElementById('loader').style.display = 'none';
+
             } catch (err) {
+                alert("LIFF Error: " + err.message);
                 console.error("LIFF error", err);
             }
         }
@@ -125,27 +137,37 @@
             const start = document.getElementById('start').value;
             const time = document.getElementById('time').value;
 
-            // เช็กความครบถ้วนก่อนส่ง
+            // 1. เช็กความครบถ้วน
             if(!goal || !targetId || targetId === "" || !total) {
-                return alert('เฮีย! กรอกข้อมูลและเลือกเพื่อนก่อนนะเมี๊ยว!');
+                return alert('เฮีย! กรอกข้อมูลและเลือกชื่อเพื่อนก่อนนะเมี๊ยว!');
             }
 
-            // ตรวจสอบสิทธิ์การส่งข้อความ (เผื่อเพื่อนไม่ได้ให้สิทธิ์)
+            // 2. เช็กว่าเปิดใน LINE ไหม
             if (!liff.isInClient()) {
-                return alert('กรุณาเปิดในแอป LINE เท่านั้นนะเมี๊ยว');
+                return alert('ต้องเปิดลิงก์นี้ในแอป LINE เท่านั้นถึงจะส่งคำสั่งได้ครับเฮีย');
             }
 
+            // ปิดปุ่มกันกดซ้ำ
+            const btn = document.getElementById('saveBtn');
+            btn.disabled = true;
+            btn.innerText = "กำลังบันทึก...";
+
+            // 3. เตรียมข้อความสั่งการบอท
             const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetId}\nTargetName: ${targetName}`;
             
+            // 4. ส่งข้อความกลับเข้าแชทกลุ่ม
             liff.sendMessages([{ type: 'text', text: text }])
                 .then(() => {
                     liff.closeWindow();
                 })
                 .catch((err) => {
-                    alert('ส่งข้อความไม่สำเร็จ: ' + err.message);
+                    btn.disabled = false;
+                    btn.innerText = "บันทึกรายการออมเมี๊ยว!";
+                    alert('ส่งไม่สำเร็จเมี๊ยว! เฮียลืมติ๊ก "chat_message.write" ใน LINE Dev หรือเปล่า? (Error: ' + err.message + ')');
                 });
         }
         
+        // รันฟังก์ชันหลัก
         main();
     </script>
 </body>

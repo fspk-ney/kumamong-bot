@@ -100,15 +100,29 @@ def handle_postback(event):
 def handle_message(event):
     text = event.message.text
     user_id = event.source.user_id
-    group_id = getattr(event.source, 'group_id', 'personal')
+    
+    # --- 🛠 ปรับการดึง ID ให้แม่นยำขึ้น ---
+    source = event.source
+    if hasattr(source, 'group_id'):
+        group_id = source.group_id
+    elif hasattr(source, 'room_id'):
+        group_id = source.room_id
+    else:
+        group_id = 'personal'
 
-    # --- 🤫 ระบบจำชื่อเพื่อน (ห้ามลบ!) ---
+    # --- 🤫 ระบบจำชื่อเพื่อน (ปรับปรุงให้ดึงชื่อได้ชัวร์ขึ้น) ---
     try:
+        # พยายามดึงชื่อจาก Profile (เพื่อนต้องแอดบอท)
         profile = line_bot_api.get_profile(user_id)
+        display_name = profile.display_name
+        
         supabase.table("group_members").upsert({
-            "group_id": group_id, "user_id": user_id, "display_name": profile.display_name
+            "group_id": group_id, 
+            "user_id": user_id, 
+            "display_name": display_name
         }).execute()
-    except: pass
+    except Exception as e:
+        print(f"Profile error: {e}")
 
     if text == "เมี๊ยว":
         flex_menu = {
@@ -146,4 +160,5 @@ def handle_message(event):
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาด: {str(e)}"))
 
-if __name__ == "__main__": app.run(port=5000)
+if __name__ == "__main__": 
+    app.run(port=5000)
