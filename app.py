@@ -1,8 +1,33 @@
+import os
+from flask import Flask, request, abort
+from linebot import LineBotApi, WebhookHandler
+from linebot.exceptions import InvalidSignatureError
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from dotenv import load_dotenv
+
+# โหลดค่าจาก Environment
+load_dotenv()
+
+app = Flask(__name__)
+
+line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
+handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
+
+@app.route("/callback", methods=['POST'])
+def callback():
+    signature = request.headers.get('X-Line-Signature')
+    body = request.get_data(as_text=True)
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return 'OK'
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text
     
-    # เมื่อได้รับข้อความจากหน้าป๊อปอัพ (LIFF)
+    # 1. รับค่าจากหน้าป๊อปอัพ (LIFF)
     if "[คำสั่งออมเงิน]" in text:
         try:
             lines = text.split('\n')
@@ -10,35 +35,34 @@ def handle_message(event):
             total = float(lines[2].split(': ')[1])
             freq = lines[3].split(': ')[1]
             
-            # คำนวณเบื้องต้น (สมมติหาร 2 คนตามที่เฮียเคยบอก หรือจะให้เพื่อนกดจอยเพิ่มทีหลัง)
-            per_person_total = total / 2
-            per_installment = round(per_person_total / 36, 2)
+            # คำนวณเบื้องต้น (หาร 2 คน / 36 งวด)
+            per_installment = round((total / 2) / 36, 2)
             
             reply_text = (
                 f"🐾 คุ้มมงเปิดบิลออมเงินแล้วเมี๊ยว!\n\n"
                 f"📌 เป้าหมาย: {goal_name}\n"
-                f"💰 ยอดรวม: {total:,.2 text} บาท\n"
+                f"💰 ยอดรวม: {total:,.2f} บาท\n"
                 f"⏰ ความถี่: {freq}\n"
                 f"🔢 ทั้งหมด: 36 งวด\n"
                 f"----------------------\n"
                 f"💵 เก็บคนละประมาณ: {per_installment:,.2f} บาท/งวด\n"
-                f"(คำนวณเบื้องต้นสำหรับสมาชิก 2 คน)\n\n"
+                f"(คำนวณสำหรับสมาชิก 2 คน)\n\n"
                 f"เตรียมเงินไว้ให้ดี อย่าให้คุ้มมงต้องกางเล็บ! 🐱"
             )
-        except Exception as e:
-            reply_text = "เกิดข้อผิดพลาดในการคำนวณเมี๊ยว! ลองตั้งค่าใหม่อีกทีนะเฮีย"
+        except:
+            reply_text = "ข้อมูลไม่ถูกต้อง ลองตั้งค่าใหม่อีกทีนะเฮีย"
 
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=reply_text)
-        )
-    
-    # คำสั่งเรียกหน้าป๊อปอัพ (พิมพ์คำนี้เพื่อเปิดหน้าเลือก)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+
+    # 2. คำสั่งเรียกหน้าป๊อปอัพ
     elif text == "สร้างบิล":
-        liff_url = f"https://liff.line.me/2009693749-SfmWsP0l"
+        liff_url = "https://liff.line.me/2009693749-SfmWsP0l"
         reply_text = f"จิ้มที่ลิงก์เพื่อตั้งค่าบิลออมเงินเลยเมี๊ยว! 🐾\n{liff_url}"
-        
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=reply_text)
-        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+
+    # 3. คำสั่งทดสอบอื่นๆ
+    elif text == "เมี๊ยว":
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="เรียกทำไมมนุษย์! จะออมเงินแล้วหรอ? 🐾"))
+
+if __name__ == "__main__":
+    app.run(port=5000)
