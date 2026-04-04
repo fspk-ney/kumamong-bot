@@ -1,17 +1,22 @@
 import os
-from flask import Flask, request, abort
+from flask import Flask, request, abort, send_from_directory # เพิ่ม send_from_directory
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from dotenv import load_dotenv
 
-# โหลดค่าจาก Environment
 load_dotenv()
-
 app = Flask(__name__)
 
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
+
+# --- ส่วนที่เพิ่มมาเพื่อให้เข้าหน้า index.html ได้ ---
+@app.route('/')
+@app.route('/index.html')
+def serve_index():
+    return send_from_directory('.', 'index.html')
+# ----------------------------------------------
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -27,15 +32,12 @@ def callback():
 def handle_message(event):
     text = event.message.text
     
-    # 1. รับค่าจากหน้าป๊อปอัพ (LIFF)
     if "[คำสั่งออมเงิน]" in text:
         try:
             lines = text.split('\n')
             goal_name = lines[1].split(': ')[1]
             total = float(lines[2].split(': ')[1])
             freq = lines[3].split(': ')[1]
-            
-            # คำนวณเบื้องต้น (หาร 2 คน / 36 งวด)
             per_installment = round((total / 2) / 36, 2)
             
             reply_text = (
@@ -51,18 +53,12 @@ def handle_message(event):
             )
         except:
             reply_text = "ข้อมูลไม่ถูกต้อง ลองตั้งค่าใหม่อีกทีนะเฮีย"
-
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
 
-    # 2. คำสั่งเรียกหน้าป๊อปอัพ
     elif text == "สร้างบิล":
         liff_url = "https://liff.line.me/2009693749-SfmWsP0l"
         reply_text = f"จิ้มที่ลิงก์เพื่อตั้งค่าบิลออมเงินเลยเมี๊ยว! 🐾\n{liff_url}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
-
-    # 3. คำสั่งทดสอบอื่นๆ
-    elif text == "เมี๊ยว":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="เรียกทำไมมนุษย์! จะออมเงินแล้วหรอ? 🐾"))
 
 if __name__ == "__main__":
     app.run(port=5000)
