@@ -3,85 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>คลังออมเงินคุ้มมง 🐾</title>
+    <title>สมุดบัญชีคุ้มมง 🐾</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f0f2f5; font-family: 'Kanit', sans-serif; }
-        .card { border-radius: 20px; border: none; box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
-        .btn-kumamong { background-color: #1DB446; color: white; border-radius: 12px; font-weight: 600; transition: 0.3s; }
-        .btn-kumamong:hover { background-color: #169a3a; color: white; }
+        body { background-color: #f8f9fa; font-family: 'Kanit', sans-serif; }
+        .card { border-radius: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 12px; }
+        .btn-kumamong { background-color: #1DB446; color: white; border-radius: 10px; font-weight: 600; }
+        .status-paid { color: #1DB446; font-weight: bold; background: #e8f5e9; padding: 2px 8px; border-radius: 5px; }
+        .status-pending { color: #f39c12; font-weight: bold; background: #fff3e0; padding: 2px 8px; border-radius: 5px; }
         .d-none { display: none !important; }
     </style>
 </head>
 <body class="p-3">
-    <div class="container mt-4">
-        <div id="create-section" class="card p-4">
+    <div class="container">
+        <div id="create-section" class="card p-4 d-none">
             <h3 class="text-center mb-4">🐾 สร้างบิลออมเงิน</h3>
-            <div class="mb-3">
-                <label class="form-label">ชื่อทริป/เป้าหมาย</label>
-                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">ยอดเงินรวม (บาท)</label>
-                <input type="number" id="amount" class="form-control" placeholder="0.00">
-            </div>
-            <button class="btn btn-kumamong w-100 p-3" onclick="sendBill()">สร้างบิลและส่งเข้าแชท</button>
+            <input type="text" id="goal" class="form-control mb-3" placeholder="ชื่อทริป/เป้าหมาย">
+            <input type="number" id="amount" class="form-control mb-3" placeholder="ยอดรวม (บาท)">
+            <button class="btn btn-kumamong w-100 p-3 mb-2" onclick="sendBill()">สร้างบิลและส่งเข้าแชท</button>
+            <button class="btn btn-outline-secondary w-100" onclick="showSection('history-section')">📊 ดูประวัติทั้งหมด</button>
         </div>
 
-        <div id="pay-section" class="card p-4 d-none">
-            <div class="text-center mb-4">
-                <div style="font-size: 50px;">💰</div>
-                <h3 class="mt-2">ยืนยันการชำระเงิน</h3>
-                <p class="text-muted">บิลหมายเลข: <span id="display-bill-id" class="fw-bold text-primary"></span></p>
+        <div id="pay-section" class="card p-4 d-none text-center">
+            <h3 class="mb-4">💰 ยืนยันจ่ายเงิน</h3>
+            <p>คุณกำลังจะบันทึกบิล ID: <span id="display-bill-id" class="fw-bold"></span></p>
+            <button class="btn btn-success w-100 p-3 mb-2" onclick="confirmPayment()">✅ ยืนยันว่าจ่ายแล้ว</button>
+            <button class="btn btn-light w-100" onclick="showSection('history-section')">ยกเลิก</button>
+        </div>
+
+        <div id="history-section" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 class="m-0">📊 ประวัติออมเงิน</h3>
+                <button class="btn btn-sm btn-primary" onclick="showSection('create-section')">+ สร้างใหม่</button>
             </div>
-            <p class="text-center">คุณกำลังบันทึกสถานะว่า **"จ่ายเงินแล้ว"**</p>
-            <button class="btn btn-kumamong w-100 p-3 mb-2" onclick="confirmPayment()">✅ ยืนยันว่าจ่ายแล้ว</button>
-            <button class="btn btn-outline-secondary w-100 p-2" onclick="liff.closeWindow()">ยกเลิก</button>
+            <div id="history-list">
+                <p class="text-center text-muted small">กำลังดึงข้อมูลจากดาวแมว...</p>
+            </div>
         </div>
     </div>
 
     <script>
-        async function main() {
-            // ใส่ LIFF ID ของเฮียตรงนี้
-            await liff.init({ liffId: "2009693749-SfmWsP0l" });
+        // ผมใส่ค่าจากรูปที่เฮียส่งมาให้แล้วเมี๊ยว!
+        const SUPABASE_URL = "https://jvuhjuvvarpjcwpgwkny.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V80145c26b23d9377be8345c61304543b593f4be8c8"; 
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-            // ตรวจสอบว่าใน URL มี bill_id ไหม
+        async function main() {
+            await liff.init({ liffId: "2009693749-SfmWsP0l" });
             const urlParams = new URLSearchParams(window.location.search);
             const billId = urlParams.get('bill_id');
 
             if (billId) {
-                // ถ้ามี bill_id -> ซ่อนหน้าสร้างบิล โชว์หน้าจ่ายเงิน
-                document.getElementById('create-section').classList.add('d-none');
-                document.getElementById('pay-section').classList.remove('d-none');
+                showSection('pay-section');
                 document.getElementById('display-bill-id').innerText = billId;
+            } else {
+                showSection('history-section');
+                loadHistory();
+            }
+        }
+
+        function showSection(id) {
+            document.getElementById('create-section').classList.add('d-none');
+            document.getElementById('pay-section').classList.add('d-none');
+            document.getElementById('history-section').classList.add('d-none');
+            document.getElementById(id).classList.remove('d-none');
+            if(id === 'history-section') loadHistory();
+        }
+
+        async function loadHistory() {
+            try {
+                const profile = await liff.getProfile();
+                const { data, error } = await _supabase.from('bills').select('*').eq('created_by', profile.userId).order('created_at', { ascending: false });
+                
+                const listDiv = document.getElementById('history-list');
+                if (data && data.length > 0) {
+                    listDiv.innerHTML = data.map(bill => `
+                        <div class="card p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="fw-bold text-dark">${bill.bill_name}</div>
+                                    <div class="text-muted small">${bill.per_person.toLocaleString()} ฿ / งวด</div>
+                                </div>
+                                <span class="${bill.status === 'paid' ? 'status-paid' : 'status-pending'}">
+                                    ${bill.status === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย'}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    listDiv.innerHTML = '<div class="text-center p-5 text-muted">ยังไม่มีประวัติการออมเมี๊ยว!</div>';
+                }
+            } catch (e) {
+                console.error(e);
             }
         }
 
         function sendBill() {
             const goal = document.getElementById('goal').value;
             const amount = document.getElementById('amount').value;
-            if (!goal || !amount) return alert('กรอกให้ครบนะเฮีย!');
-
-            liff.sendMessages([{
-                type: 'text',
-                text: `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${amount}`
-            }]).then(() => liff.closeWindow())
-               .catch(err => alert('Error: ' + err));
+            if (!goal || !amount) return alert('กรอกข้อมูลก่อนนะเฮีย!');
+            liff.sendMessages([{ type: 'text', text: `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${amount}` }]).then(() => liff.closeWindow());
         }
 
         function confirmPayment() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const billId = urlParams.get('bill_id');
-            
-            liff.sendMessages([{
-                type: 'text',
-                text: `[ยืนยันจ่ายเงิน]\nBillID: ${billId}`
-            }]).then(() => {
-                alert('บันทึกสำเร็จเมี๊ยว!');
-                liff.closeWindow();
-            }).catch(err => alert('Error: ' + err));
+            const billId = document.getElementById('display-bill-id').innerText;
+            liff.sendMessages([{ type: 'text', text: `[ยืนยันจ่ายเงิน]\nBillID: ${billId}` }]).then(() => liff.closeWindow());
         }
 
         main();
