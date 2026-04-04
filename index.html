@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ออมเงินกับคุ้มมง 🐾</title>
+    <title>สร้างรายการออม 🐾</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f0f2f5; font-family: 'Kanit', sans-serif; }
-        .card { border-radius: 25px; border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .btn-kumamong { background-color: #1DB446; color: white; border-radius: 15px; font-weight: 600; padding: 12px; }
+        body { background-color: #f8f9fa; font-family: 'Kanit', sans-serif; }
+        .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .btn-success { background-color: #1DB446; border: none; border-radius: 12px; padding: 12px; font-weight: 600; }
     </style>
 </head>
 <body class="p-3">
-    <div class="container mt-2">
+    <div class="container">
         <div class="card p-4">
-            <h4 class="text-center mb-4">💰 สร้างรายการออมใหม่</h4>
+            <h4 class="text-center fw-bold mb-4">💰 สร้างรายการออมใหม่</h4>
             
             <div class="mb-3">
-                <label class="form-label">👥 เลือกสมาชิกที่จะออม</label>
+                <label class="form-label">👥 เลือกเพื่อนที่จะออมด้วย</label>
                 <select id="target_user" class="form-select">
-                    <option value="">กำลังโหลดสมาชิก...</option>
+                    <option value="">กำลังโหลดรายชื่อเพื่อน...</option>
                 </select>
-                <small class="text-muted">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "เมี๊ยว" ในกลุ่มก่อนนะ</small>
             </div>
 
             <div class="mb-3">
@@ -32,72 +32,76 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">💵 ยอดรวมทั้งหมด (บาท)</label>
+                <label class="form-label">💵 ยอดรวมเป้าหมาย (บาท)</label>
                 <input type="number" id="total" class="form-control" placeholder="0.00">
             </div>
 
             <div class="row">
-                <div class="col-6 mb-3"><label class="form-label">🔢 จำนวนงวด</label><input type="number" id="count" class="form-control" value="10"></div>
+                <div class="col-6 mb-3">
+                    <label class="form-label">🔢 จำนวนงวด</label>
+                    <input type="number" id="count" class="form-control" value="10">
+                </div>
                 <div class="col-6 mb-3">
                     <label class="form-label">🔄 ความถี่</label>
-                    <select id="freq_unit" class="form-select">
-                        <option value="7d">ทุก 1 อาทิตย์</option>
-                        <option value="1m">ทุก 1 เดือน</option>
+                    <select id="unit" class="form-select">
+                        <option value="7d">ทุกอาทิตย์</option>
+                        <option value="1m">ทุกเดือน</option>
                     </select>
                 </div>
             </div>
 
             <div class="row">
-                <div class="col-6 mb-3"><label class="form-label">📅 เริ่มงวดแรก</label><input type="date" id="start_date" class="form-control"></div>
-                <div class="col-6 mb-4"><label class="form-label">⏰ เวลาทวง</label><input type="time" id="remind_time" class="form-control" value="08:00"></div>
+                <div class="col-6 mb-3">
+                    <label class="form-label">📅 เริ่มงวดแรก</label>
+                    <input type="date" id="start" class="form-control">
+                </div>
+                <div class="col-6 mb-4">
+                    <label class="form-label">⏰ เวลาทวงเงิน</label>
+                    <input type="time" id="time" class="form-control" value="08:00">
+                </div>
             </div>
 
-            <button class="btn btn-kumamong w-100" onclick="confirmBill()">บันทึกรายการเมี๊ยว!</button>
+            <button class="btn btn-success w-100" onclick="confirmSave()">บันทึกรายการออมเมี๊ยว!</button>
         </div>
     </div>
 
     <script>
-        const SUPABASE_URL = "https://your-project.supabase.co"; // ใส่ของเฮีย
-        const SUPABASE_KEY = "your-anon-key"; // ใส่ของเฮีย
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
 
         async function main() {
             await liff.init({ liffId: "2009693749-SfmWsP0l" });
-            document.getElementById('start_date').valueAsDate = new Date();
+            document.getElementById('start').valueAsDate = new Date();
+            
+            const params = new URLSearchParams(window.location.search);
+            const gid = params.get('groupId') || 'personal';
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const groupId = urlParams.get('groupId') || 'personal';
-
-            // ดึงรายชื่อสมาชิกในกลุ่มนี้มาให้เลือก
-            const { data: members } = await supabaseClient
-                .from('group_members')
-                .select('*')
-                .eq('group_id', groupId);
-
+            // ดึงสมาชิกจากกลุ่มนี้
+            const { data: members } = await client.from('group_members').select('*').eq('group_id', gid);
             const select = document.getElementById('target_user');
             select.innerHTML = '<option value="">-- จิ้มเลือกชื่อเพื่อน --</option>';
-            members.forEach(m => {
-                select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
-            });
+            if(members) {
+                members.forEach(m => {
+                    select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
+                });
+            }
         }
 
-        function confirmBill() {
-            const goal = document.getElementById('goal').value;
-            const total = document.getElementById('total').value;
-            const count = document.getElementById('count').value;
-            const unit = document.getElementById('freq_unit').value;
-            const start = document.getElementById('start_date').value;
-            const time = document.getElementById('remind_time').value;
+        function confirmSave() {
             const select = document.getElementById('target_user');
             const targetId = select.value;
             const targetName = select.options[select.selectedIndex].text;
+            const goal = document.getElementById('goal').value;
+            const total = document.getElementById('total').value;
+            const count = document.getElementById('count').value;
+            const unit = document.getElementById('unit').value;
+            const start = document.getElementById('start').value;
+            const time = document.getElementById('time').value;
 
-            if (!goal || !targetId || !total) return alert('กรอกข้อมูลและเลือกเพื่อนด้วยเมี๊ยว!');
+            if(!goal || !targetId || !total) return alert('กรอกข้อมูลให้ครบก่อนนะเมี๊ยว!');
 
-            liff.sendMessages([{
-                type: 'text',
-                text: `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetId}\nTargetName: ${targetName}`
-            }]).then(() => liff.closeWindow());
+            const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetId}\nTargetName: ${targetName}`;
+            
+            liff.sendMessages([{ type: 'text', text: text }]).then(() => liff.closeWindow());
         }
         main();
     </script>
