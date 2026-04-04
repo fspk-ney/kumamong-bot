@@ -12,6 +12,9 @@
         body { background-color: #f8f9fa; font-family: 'Kanit', sans-serif; }
         .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .btn-success { background-color: #1DB446; border: none; border-radius: 12px; padding: 12px; font-weight: 600; }
+        /* สไตล์เพิ่มเติมเพื่อให้ดูพรีเมียมขึ้น */
+        .form-label { font-weight: 600; font-size: 0.9rem; color: #444; }
+        .form-control, .form-select { border-radius: 10px; border: 1px solid #ddd; }
     </style>
 </head>
 <body class="p-3">
@@ -24,6 +27,7 @@
                 <select id="target_user" class="form-select">
                     <option value="">กำลังโหลดรายชื่อเพื่อน...</option>
                 </select>
+                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "เมี๊ยว" ในกลุ่มก่อน</small>
             </div>
 
             <div class="mb-3">
@@ -61,7 +65,7 @@
                 </div>
             </div>
 
-            <button class="btn btn-success w-100" onclick="confirmSave()">บันทึกรายการออมเมี๊ยว!</button>
+            <button class="btn btn-success w-100 shadow-sm" onclick="confirmSave()">บันทึกรายการออมเมี๊ยว!</button>
         </div>
     </div>
 
@@ -69,20 +73,44 @@
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
 
         async function main() {
-            await liff.init({ liffId: "2009693749-SfmWsP0l" });
-            document.getElementById('start').valueAsDate = new Date();
-            
-            const params = new URLSearchParams(window.location.search);
-            const gid = params.get('groupId') || 'personal';
+            try {
+                // 1. เริ่มต้น LIFF
+                await liff.init({ liffId: "2009693749-SfmWsP0l" });
 
-            // ดึงสมาชิกจากกลุ่มนี้
-            const { data: members } = await client.from('group_members').select('*').eq('group_id', gid);
-            const select = document.getElementById('target_user');
-            select.innerHTML = '<option value="">-- จิ้มเลือกชื่อเพื่อน --</option>';
-            if(members) {
-                members.forEach(m => {
-                    select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
-                });
+                // 2. เช็กว่า Login หรือยัง (แก้ปัญหา 400 Bad Request สำหรับเพื่อนคนอื่น)
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                    return;
+                }
+
+                document.getElementById('start').valueAsDate = new Date();
+                
+                const params = new URLSearchParams(window.location.search);
+                const gid = params.get('groupId') || 'personal';
+
+                // 3. ดึงสมาชิกจากกลุ่มนี้ใน Supabase
+                const { data: members, error } = await client
+                    .from('group_members')
+                    .select('*')
+                    .eq('group_id', gid);
+
+                const select = document.getElementById('target_user');
+                
+                if (error) {
+                    select.innerHTML = '<option value="">โหลดข้อมูลไม่สำเร็จ...</option>';
+                    return;
+                }
+
+                select.innerHTML = '<option value="">-- จิ้มเลือกชื่อเพื่อน --</option>';
+                if(members && members.length > 0) {
+                    members.forEach(m => {
+                        select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
+                    });
+                } else {
+                    select.innerHTML = '<option value="">ยังไม่มีข้อมูลเพื่อน (ให้เพื่อนพิมพ์ เมี๊ยว)</option>';
+                }
+            } catch (err) {
+                console.error("LIFF error", err);
             }
         }
 
@@ -97,12 +125,27 @@
             const start = document.getElementById('start').value;
             const time = document.getElementById('time').value;
 
-            if(!goal || !targetId || !total) return alert('กรอกข้อมูลให้ครบก่อนนะเมี๊ยว!');
+            // เช็กความครบถ้วนก่อนส่ง
+            if(!goal || !targetId || targetId === "" || !total) {
+                return alert('เฮีย! กรอกข้อมูลและเลือกเพื่อนก่อนนะเมี๊ยว!');
+            }
+
+            // ตรวจสอบสิทธิ์การส่งข้อความ (เผื่อเพื่อนไม่ได้ให้สิทธิ์)
+            if (!liff.isInClient()) {
+                return alert('กรุณาเปิดในแอป LINE เท่านั้นนะเมี๊ยว');
+            }
 
             const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetId}\nTargetName: ${targetName}`;
             
-            liff.sendMessages([{ type: 'text', text: text }]).then(() => liff.closeWindow());
+            liff.sendMessages([{ type: 'text', text: text }])
+                .then(() => {
+                    liff.closeWindow();
+                })
+                .catch((err) => {
+                    alert('ส่งข้อความไม่สำเร็จ: ' + err.message);
+                });
         }
+        
         main();
     </script>
 </body>
