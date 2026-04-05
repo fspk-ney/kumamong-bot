@@ -88,9 +88,10 @@
 
                 document.getElementById('start').valueAsDate = new Date();
                 const params = new URLSearchParams(window.location.search);
-                const gid = params.get('groupId') || 'personal';
-
-                const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
+                const gid = params.get('groupId') || 'personal'; 
+                const { data: members, error } = await client.from('group_members')
+                                                        .select('*')
+                                                        .eq('group_id', gid);
 
                 const listDiv = document.getElementById('friend-list');
                 

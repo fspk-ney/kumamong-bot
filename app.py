@@ -168,10 +168,27 @@ def handle_postback(event):
 def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
+    
+    # 🔍 1. ดึงโปรไฟล์คนพิมพ์ (เอาชื่อมาเก็บ)
+    try:
+        profile = line_bot_api.get_profile(user_id)
+        display_name = profile.display_name
+    except:
+        display_name = "เพื่อนนิรนาม"
+
+    # 🔍 2. เช็กว่ามาจากกลุ่มไหน
     source = event.source
     group_id = 'personal'
     if hasattr(source, 'group_id'): group_id = source.group_id
     elif hasattr(source, 'room_id'): group_id = source.room_id
+
+    # 🚀 3. [สำคัญ!] บันทึกหรืออัปเดตรายชื่อลงตาราง group_members
+    # เพื่อให้หน้าสร้างรายการออมมองเห็นเพื่อนคนนี้
+    supabase.table("group_members").upsert({
+        "group_id": group_id,
+        "user_id": user_id,
+        "display_name": display_name
+    }).execute()
 
     if text == "มะมง":
         reply_text = "สวัสดีครับ มะมงมาแล้วครับผม 🐶 จะให้มะหมาตัวนี้ช่วยเรื่องอะไรดีครับ"
