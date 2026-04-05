@@ -29,15 +29,14 @@ def serve_index():
 def serve_list():
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงิน (ปรับปรุงให้รองรับรายนาที) ---
+# --- 🚀 ระบบทวงเงิน (แยกงวด 1 งวดต่อ 1 ข้อความ) ---
 @app.route('/check_bills')
 def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(tz)
-    # สร้าง String เวลาปัจจุบันเพื่อไปเทียบกับ Database (รูปแบบ YYYY-MM-DD HH:MM:SS)
     now_str = now.strftime('%Y-%m-%d %H:%M:%S')
     
-    # แก้ SQL: ดึงเฉพาะรายการที่ "ถึงกำหนดแล้ว (<= now)" และ "ยังไม่จ่าย"
+    # ดึงเฉพาะรายการที่ถึงกำหนด และยังไม่จ่าย
     res = supabase.table("bills") \
         .select("*") \
         .lte("next_due", now_str) \
@@ -45,32 +44,31 @@ def check_bills():
         .execute()
 
     if not res.data:
-        return "No bills due at this time", 200
+        return "No bills due", 200
     
-    grouped_bills = {}
+    # จัดกลุ่มตาม "บิล" และ "เวลาที่ต้องจ่าย (งวด)" เพื่อแยกส่ง
+    # group_key จะรวมเวลาเข้าไปด้วย เพื่อให้งวดที่เวลาต่างกันถูกแยกออกจากกัน
+    grouped_installments = {}
     for bill in res.data:
-        # จัดกลุ่มตามชื่อบิลและกลุ่ม เพื่อส่ง Flex อันเดียวต่อกลุ่ม
-        group_key = f"{bill['bill_name']}_{bill.get('group_id', 'personal')}"
-        if group_key not in grouped_bills:
-            grouped_bills[group_key] = []
-        grouped_bills[group_key].append(bill)
+        # ใช้ชื่อบิล + กลุ่ม + เวลาที่ต้องส่ง เป็น Key ในการแยกแผ่น
+        installment_key = f"{bill['bill_name']}_{bill.get('group_id')}_{bill['next_due']}"
+        if installment_key not in grouped_installments:
+            grouped_installments[installment_key] = []
+        grouped_installments[installment_key].append(bill)
 
-    for key, members in grouped_bills.items():
+    for key, members in grouped_installments.items():
         try:
             bill_name = members[0]['bill_name']
+            due_time = members[0]['next_due']
             target_destination = members[0].get('group_id') or members[0].get('target_user_id') or members[0]['created_by']
             
             member_list_ui = []
             for m in members:
-                is_paid = m['status'] == 'paid'
-                icon = "✅" if is_paid else "⏳"
-                color = "#1DB446" if is_paid else "#ff4d4d"
-                status_text = "จ่ายแล้ว" if is_paid else "ยังไม่จ่าย"
-
+                # ในแผ่นนี้จะโชว์เฉพาะคนในงวดนั้นๆ ที่ยังไม่จ่าย
                 member_list_ui.append({
                     "type": "box", "layout": "horizontal", "margin": "sm", "contents": [
-                        {"type": "text", "text": f"{icon} {m['member_name']}", "size": "sm", "color": "#111111", "flex": 4},
-                        {"type": "text", "text": status_text, "size": "xs", "color": color, "align": "end", "flex": 2}
+                        {"type": "text", "text": f"⏳ {m['member_name']}", "size": "sm", "color": "#111111", "flex": 4},
+                        {"type": "text", "text": "ยังไม่จ่าย", "size": "xs", "color": "#ff4d4d", "align": "end", "flex": 2}
                     ]
                 })
 
@@ -78,13 +76,14 @@ def check_bills():
                 "type": "bubble",
                 "body": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": "💰 มะมงมาทวงเงินแล้วครับเฮีย! 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
+                        {"type": "text", "text": "📢 มะมงมาทวงเงินรายงวดครับ! 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
                         {"type": "text", "text": bill_name, "weight": "bold", "size": "xl", "margin": "md"},
-                        {"type": "text", "text": f"ยอดต่อคน: {members[0]['per_person']:,.2f} บาท", "size": "xs", "color": "#888888"},
+                        {"type": "text", "text": f"งวดประจำเวลา: {due_time}", "size": "xs", "color": "#ff4d4d", "weight": "bold"},
+                        {"type": "text", "text": f"ยอดต่อคน: {members[0]['per_person']:,.2f} บาท", "size": "xs", "color": "#888888", "margin": "xs"},
                         {"type": "separator", "margin": "lg"},
                         {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "xs", "contents": member_list_ui},
                         {"type": "separator", "margin": "lg"},
-                        {"type": "text", "text": f"* ครบกำหนดเมื่อ: {members[0]['next_due']}", "size": "xs", "color": "#aaaaaa", "margin": "md"}
+                        {"type": "text", "text": "* มะมงตามเฉพาะงวดที่ถึงกำหนดครับ 🐾", "size": "xs", "color": "#aaaaaa", "margin": "md"}
                     ]
                 },
                 "footer": {
@@ -95,7 +94,7 @@ def check_bills():
                     ]
                 }
             }
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"มะมงทวงบิล {bill_name}", contents=flex))
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"มะมงทวงบิล {bill_name} งวด {due_time}", contents=flex))
         except Exception as e:
             print(f"Error in check_bills: {e}")
             
