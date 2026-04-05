@@ -9,31 +9,30 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f0f2f5; font-family: 'Kanit', sans-serif; }
-        .bill-card { border-radius: 15px; border: none; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); background: white; overflow: hidden; }
-        .card-content { padding: 15px; cursor: pointer; transition: 0.3s; }
-        .card-content:hover { background-color: #f8f9fa; }
-        .card-footer-actions { background: #fafafa; border-top: 1px solid #eee; padding: 10px 15px; display: flex; gap: 8px; justify-content: flex-end; }
-        .inst-card { border-radius: 10px; border: 1px solid #eee; margin-bottom: 10px; transition: 0.2s; cursor: pointer; }
-        .inst-card:hover { background-color: #f8f9fa; }
-        .btn-pay { background-color: #1DB446; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
-        .btn-main-edit { background-color: #ffc107; border: none; border-radius: 8px; color: #000; font-size: 0.75rem; padding: 6px 12px; font-weight: 600; }
-        .btn-main-delete { background-color: #ff4d4d; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 6px 12px; font-weight: 600; }
-        .status-badge { font-size: 0.7rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+        body { background-color: #f8f9fa; font-family: 'Kanit', sans-serif; color: #333; }
+        .bill-card { border-radius: 20px; border: none; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); background: white; transition: 0.3s; }
+        .bill-card:hover { transform: translateY(-5px); }
+        .card-content { padding: 20px; cursor: pointer; }
+        .inst-card { border-radius: 15px; border: 1px solid #eee; margin-bottom: 12px; padding: 15px; cursor: pointer; transition: 0.2s; background: #fff; }
+        .inst-card:hover { border-color: #1DB446; background-color: #f0fff4; }
+        .btn-pay { background-color: #1DB446; border: none; border-radius: 10px; color: #fff; padding: 6px 15px; font-weight: 600; }
+        .btn-main-edit { background-color: #ffc107; border: none; border-radius: 10px; padding: 6px 15px; font-weight: 600; }
+        .btn-main-delete { background-color: #ff4d4d; border: none; border-radius: 10px; color: #fff; padding: 6px 15px; font-weight: 600; }
+        .progress-mini { height: 8px; border-radius: 10px; background: #eee; margin-top: 10px; }
     </style>
 </head>
 <body class="p-3">
-    <div class="container">
+    <div class="container" style="max-width: 500px;">
         <h4 class="fw-bold mb-4 text-center">📊 มะมงจัดการรายการออม 🐶</h4>
         <div id="bill-list">
-            <div class="text-center p-5"><div class="spinner-border text-success"></div><p>มะมงกำลังไปคาบข้อมูลมาให้ครับ...</p></div>
+            <div class="text-center p-5"><div class="spinner-border text-success"></div></div>
         </div>
     </div>
 
     <div class="modal fade" id="mainModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content" style="border-radius: 20px; border: none;">
-                <div class="modal-header border-0">
+            <div class="modal-content" style="border-radius: 25px; border: none;">
+                <div class="modal-header border-0 pb-0">
                     <h5 class="modal-title fw-bold" id="modal-title">รายละเอียด</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -42,46 +41,26 @@
         </div>
     </div>
 
-    <div class="modal fade" id="editModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="border-radius: 20px;">
-                <div class="modal-header border-0">
-                    <h5 class="modal-title fw-bold">📝 มะมงช่วยแก้ไขรายการ</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="edit-old-name">
-                    <div class="mb-3">
-                        <label class="form-label">🎯 ชื่อรายการ</label>
-                        <input type="text" id="edit-name" class="form-control" style="border-radius: 10px;">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">💰 ยอดเป้าหมายรวม (บาท)</label>
-                        <input type="number" id="edit-total" class="form-control" style="border-radius: 10px;">
-                    </div>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-success w-100" onclick="updateProject()" style="border-radius: 10px;">มะมงบันทึกให้เรียบร้อย!</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
-        let allProjects = []; // เก็บข้อมูลไว้ที่นี่แทนการส่งผ่าน HTML
+        let allProjects = [];
 
         async function loadBills() {
             const listDiv = document.getElementById('bill-list');
             const { data: bills, error } = await client.from('bills').select('*').order('next_due', { ascending: true });
             
             if (error) { listDiv.innerHTML = `<div class="alert alert-danger">${error.message}</div>`; return; }
-            if (!bills || bills.length === 0) { listDiv.innerHTML = '<div class="text-center p-5 text-muted">ยังไม่มีรายการออมเลยครับผม 🐶</div>'; return; }
+            if (!bills || bills.length === 0) { listDiv.innerHTML = '<div class="text-center p-5">ยังไม่มีรายการครับเฮีย 🐾</div>'; return; }
 
+            // 🛠️ จัดกลุ่มข้อมูลใหม่: 1 โปรเจกต์ -> หลายงวด -> 2 รายชื่อ
             const projects = {};
             bills.forEach(bill => {
                 if (!projects[bill.bill_name]) {
-                    projects[bill.bill_name] = { name: bill.bill_name, total: bill.total_amount, installments: {} };
+                    projects[bill.bill_name] = { 
+                        name: bill.bill_name, 
+                        total: bill.total_amount, 
+                        installments: {} 
+                    };
                 }
                 if (!projects[bill.bill_name].installments[bill.next_due]) {
                     projects[bill.bill_name].installments[bill.next_due] = [];
@@ -93,74 +72,99 @@
             listDiv.innerHTML = '';
             
             allProjects.forEach((proj, idx) => {
-                const totalInst = Object.keys(proj.installments).length;
+                const installmentDates = Object.keys(proj.installments).sort();
+                const totalInstCount = installmentDates.length;
+                const sampleMember = proj.installments[installmentDates[0]][0];
+                const perPerson = sampleMember.per_person;
+                
+                // นับงวดที่จ่ายครบแล้ว
+                let finishedInst = 0;
+                installmentDates.forEach(date => {
+                    if (proj.installments[date].every(m => m.status === 'paid')) finishedInst++;
+                });
+
                 listDiv.innerHTML += `
                     <div class="card bill-card">
-                        <div class="card-content" onclick="showInstallments(${idx})">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h5 class="fw-bold mb-0 text-success">🎯 ${proj.name}</h5>
-                                    <small class="text-muted">เป้าหมายรวม: ฿${proj.total.toLocaleString()}</small>
-                                </div>
-                                <span class="badge bg-primary rounded-pill">${totalInst} งวด</span>
+                        <div class="card-content" onclick="showInstallmentList(${idx})">
+                            <div class="d-flex justify-content-between">
+                                <h5 class="fw-bold text-success mb-1">🎯 ${proj.name}</h5>
+                                <span class="badge bg-primary rounded-pill" style="height: fit-content;">${totalInstCount} งวด</span>
+                            </div>
+                            <div class="small text-muted mb-2">เป้าหมายรวม: ฿${proj.total.toLocaleString()}</div>
+                            <div class="p-2 rounded-3 mb-2" style="background: #eef2ff; border: 1px dashed #4f46e5;">
+                                <div class="fw-bold text-primary">💸 เก็บคนละ: ฿${perPerson.toLocaleString()} / งวด</div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center small mt-3">
+                                <span>ความคืบหน้า: ${finishedInst}/${totalInstCount} งวด</span>
+                                <span class="text-muted">คลิกจัดการ 🐾</span>
+                            </div>
+                            <div class="progress progress-mini">
+                                <div class="progress-bar bg-success" style="width: ${(finishedInst/totalInstCount)*100}%"></div>
                             </div>
                         </div>
-                        <div class="card-footer-actions">
-                            <button class="btn-main-edit" onclick="openEditProject(${idx})">แก้ไข</button>
-                            <button class="btn-main-delete" onclick="deleteProject('${proj.name.replace(/'/g, "\\'")}')">ลบ</button>
+                        <div class="card-footer border-0 bg-transparent px-3 pb-3 d-flex gap-2">
+                            <button class="btn-main-delete ms-auto" onclick="deleteProject('${proj.name.replace(/'/g, "\\'")}')">ลบ</button>
                         </div>
                     </div>
                 `;
             });
         }
 
-        function showInstallments(idx) {
+        // หน้าต่างที่ 1: เลือกงวด
+        function showInstallmentList(idx) {
             const proj = allProjects[idx];
             const modalBody = document.getElementById('modal-body');
-            document.getElementById('modal-title').innerText = proj.name;
+            document.getElementById('modal-title').innerText = `เลือกงวด: ${proj.name}`;
 
-            let html = `<p class="text-muted small mb-3">เลือกว่าจะจัดการงวดไหนครับผม 🐾</p>`;
             const sortedDates = Object.keys(proj.installments).sort();
+            let html = `<div class="list-group list-group-flush">`;
             
             sortedDates.forEach((date, i) => {
                 const members = proj.installments[date];
-                const paid = members.filter(m => m.status === 'paid').length;
+                const paidCount = members.filter(m => m.status === 'paid').length;
+                const isDone = paidCount === members.length;
+
                 html += `
-                    <div class="inst-card p-3" onclick="showMemberStatus(${idx}, '${date}')">
+                    <div class="inst-card" onclick="showMemberAction(${idx}, '${date}')">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <div class="fw-bold">งวดที่ ${i + 1}</div>
                                 <small class="text-muted">📅 ${date}</small>
                             </div>
-                            <span class="badge ${paid === members.length ? 'bg-success' : 'bg-warning text-dark'} status-badge">
-                                จ่ายแล้ว ${paid}/${members.length}
+                            <span class="badge ${isDone ? 'bg-success' : 'bg-warning text-dark'}">
+                                ${isDone ? 'ครบแล้ว' : `จ่ายแล้ว ${paidCount}/${members.length}`}
                             </span>
                         </div>
                     </div>
                 `;
             });
+            html += `</div>`;
             modalBody.innerHTML = html;
             new bootstrap.Modal(document.getElementById('mainModal')).show();
         }
 
-        function showMemberStatus(projIdx, date) {
+        // หน้าต่างที่ 2: รายชื่อคนจ่ายในงวดนั้น (จะมีแค่ 2 คนตามที่เฮียหาร)
+        function showMemberAction(projIdx, date) {
             const proj = allProjects[projIdx];
             const members = proj.installments[date];
             const modalBody = document.getElementById('modal-body');
-            document.getElementById('modal-title').innerText = `${proj.name} (${date})`;
+            document.getElementById('modal-title').innerText = `งวดวันที่ ${date}`;
 
-            let html = `<button class="btn btn-sm btn-outline-secondary mb-3" onclick="showInstallments(${projIdx})">⬅ ย้อนกลับ</button>`;
+            let html = `<button class="btn btn-sm btn-light mb-3" onclick="showInstallmentList(${projIdx})">⬅ ย้อนกลับ</button>`;
+            
             members.forEach(m => {
                 const isPaid = m.status === 'paid';
                 html += `
-                    <div class="d-flex justify-content-between align-items-center p-2 mb-2 border-bottom">
+                    <div class="d-flex justify-content-between align-items-center p-3 mb-2 rounded-3 border ${isPaid ? 'bg-light' : 'bg-white'}">
                         <div>
-                            <div class="fw-bold" style="font-size: 0.9rem;">${m.member_name}</div>
-                            <small class="${isPaid ? 'text-success' : 'text-danger'}">${isPaid ? '✅ จ่ายเรียบร้อย' : '⏳ รอมะมงตามเงิน'}</small>
+                            <div class="fw-bold">${m.member_name}</div>
+                            <div class="small ${isPaid ? 'text-success' : 'text-danger'}">
+                                ${isPaid ? '✅ จ่ายแล้ว' : '⏳ ยังไม่จ่าย'}
+                            </div>
                         </div>
                         <div class="text-end">
-                            <div class="fw-bold text-success">฿${m.per_person.toLocaleString()}</div>
-                            ${!isPaid ? `<button class="btn-pay py-1" onclick="quickPay('${m.id}')">จ่าย</button>` : ''}
+                            <div class="fw-bold mb-1">฿${m.per_person.toLocaleString()}</div>
+                            ${!isPaid ? `<button class="btn-pay" onclick="quickPay('${m.id}')">กดจ่าย</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -170,27 +174,16 @@
 
         async function quickPay(id) {
             const { error } = await client.from('bills').update({ status: 'paid' }).eq('id', id);
-            if (error) alert(error.message); else location.reload();
-        }
-
-        function openEditProject(idx) {
-            const proj = allProjects[idx];
-            document.getElementById('edit-old-name').value = proj.name;
-            document.getElementById('edit-name').value = proj.name;
-            document.getElementById('edit-total').value = proj.total;
-            new bootstrap.Modal(document.getElementById('editModal')).show();
-        }
-
-        async function updateProject() {
-            const oldName = document.getElementById('edit-old-name').value;
-            const newName = document.getElementById('edit-name').value;
-            const newTotal = document.getElementById('edit-total').value;
-            const { error } = await client.from('bills').update({ bill_name: newName, total_amount: parseFloat(newTotal) }).eq('bill_name', oldName);
-            if (error) alert(error.message); else location.reload();
+            if (error) alert(error.message); 
+            else {
+                // ปิด Modal และโหลดใหม่
+                bootstrap.Modal.getInstance(document.getElementById('mainModal')).hide();
+                loadBills();
+            }
         }
 
         async function deleteProject(name) {
-            if (confirm(`มะมงถามย้ำ! เฮียจะลบรายการ "${name}" ทุกงวดทิ้งจริงหรอครับ?`)) {
+            if (confirm(`เฮียจะลบรายการ "${name}" ทิ้งทั้งหมดเลยนะ?`)) {
                 const { error } = await client.from('bills').delete().eq('bill_name', name);
                 if (error) alert(error.message); else location.reload();
             }
