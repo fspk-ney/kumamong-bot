@@ -142,7 +142,7 @@ def check_bills():
                 }
             }
             # ตรงนี้ยังเป็น push_message (จะทำงานได้เมื่อโควตารีเซ็ต หรือซื้อเพิ่ม)
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"งวดที่ {current_inst} บิล {bill_name}", contents=flex))
+            #line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"งวดที่ {current_inst} บิล {bill_name}", contents=flex))
         except Exception as e: print(f"Error in check_bills: {e}")
             
     return "Check Complete", 200
