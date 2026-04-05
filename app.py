@@ -31,7 +31,7 @@ def serve_index():
 def serve_list():
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 รับข้อมูลจากหน้าเว็บโดยตรง ---
+# --- 🚀 [แก้ไขแล้ว] รับข้อมูลจากหน้าเว็บโดยตรง ---
 @app.route("/create_saving_api", methods=['POST'])
 def create_saving_api():
     data = request.get_json()
@@ -53,7 +53,7 @@ def create_saving_api():
         
         base_time = datetime.strptime(f"{start_str} {time_str}", "%Y-%m-%d %H:%M")
 
-        # บันทึกลง Supabase ทีละงวด
+        # 1. บันทึกลง Supabase ทีละงวด (ส่วนนี้ต้องสำเร็จ)
         for i in range(total_installments):
             if unit == "1d": due_time = base_time + timedelta(days=i)
             elif unit == "7d": due_time = base_time + timedelta(weeks=i)
@@ -65,16 +65,30 @@ def create_saving_api():
 
             for tid, tname in zip(t_ids, t_names):
                 supabase.table("bills").insert({
-                    "bill_name": goal, "total_amount": total_project_amount, "per_person": amount_per_person_per_period,
-                    "status": "pending", "created_by": user_id, "freq_unit": unit, "next_due": due_str,
-                    "remind_time": time_str, "target_user_id": tid, "member_name": tname, "group_id": group_id
+                    "bill_name": goal, 
+                    "total_amount": total_project_amount, 
+                    "per_person": amount_per_person_per_period,
+                    "status": "pending", 
+                    "created_by": user_id, 
+                    "freq_unit": unit, 
+                    "next_due": due_str,
+                    "remind_time": time_str, 
+                    "target_user_id": tid, 
+                    "member_name": tname, 
+                    "group_id": group_id
                 }).execute()
 
-        target = group_id if group_id != 'personal' else user_id
-        confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวทวงให้ตามเวลาครับ"
-        line_bot_api.push_message(target, TextSendMessage(text=confirm_text))
+        # 2. พยายามส่งข้อความยืนยันทาง LINE (ถ้าส่งไม่ได้ก็ไม่เป็นไร)
+        try:
+            target = group_id if group_id != 'personal' else user_id
+            confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวทวงให้ตามเวลาครับ"
+            line_bot_api.push_message(target, TextSendMessage(text=confirm_text))
+        except Exception as line_err:
+            print(f"⚠️ LINE Push Error (Limit reached?): {line_err}")
 
+        # 3. ส่งค่า OK กลับไปให้หน้าเว็บ LIFF ปิดหน้าจอ
         return "OK", 200
+
     except Exception as e:
         print(f"Error in API: {e}")
         return str(e), 500
