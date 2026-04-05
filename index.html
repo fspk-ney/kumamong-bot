@@ -38,7 +38,7 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label"> ชื่อรายการออม (ทริป/เป้าหมาย)</label>
+                <label class="form-label"> ชื่อรายการออม (เป้าหมาย)</label>
                 <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ค่าบ้าน">
             </div>
 
@@ -131,7 +131,6 @@
             const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
             const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
             
-            // ดึง groupId จาก URL
             const params = new URLSearchParams(window.location.search);
             const gid = params.get('groupId') || 'personal';
 
@@ -139,7 +138,6 @@
             btn.disabled = true;
             btn.innerText = "มะมงกำลังบันทึก...";
 
-            // 🐾 แก้ไข: เปลี่ยนมาใช้ fetch ยิงเข้า API หลังบ้านแทนการส่ง Message เพื่อความสะอาด
             const payload = {
                 goal: goal,
                 total: total,
@@ -153,7 +151,6 @@
                 userId: liff.getContext()?.userId || ''
             };
 
-           // 🐾 เฮียเอา URL ของ Render มาใส่ตรงนี้ให้เต็มๆ
             fetch("https://kumamong-bot.onrender.com/create_saving_api", { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -161,7 +158,18 @@
             })
             .then(response => {
                 if (response.ok) {
-                    liff.closeWindow(); // บันทึกเสร็จปิดหน้าจอทันที ไม่พ่นแชทเขียว
+                    // 🐾 บันทึกสำเร็จ: สั่งให้ LINE ส่งข้อความแทนตัวเรา (ฟรี ไม่ใช้โควตาบอท)
+                    liff.sendMessages([
+                        {
+                            type: 'text',
+                            text: `🪙 บันทึกรายการ "${goal}" เรียบร้อยแล้วครับ!\n💰 ยอดรวม: ${Number(total).toLocaleString()} บาท\n👥 สมาชิก: ${targetNames}\n\nมะมงรับทราบ! เดี๋ยวรอเช็กยอดในหน้าสรุปนะครับ`
+                        }
+                    ]).then(() => {
+                        liff.closeWindow(); 
+                    }).catch((err) => {
+                        console.error("ส่งแชทไม่สำเร็จ:", err);
+                        liff.closeWindow(); // ถ้าส่งแชทไม่ได้ อย่างน้อยก็ปิดหน้าจอ
+                    });
                 } else {
                     throw new Error('บันทึกไม่สำเร็จ');
                 }
