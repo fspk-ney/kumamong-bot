@@ -16,8 +16,7 @@ CORS(app)
 LINE_ACCESS_TOKEN = "UXPznDfBmyuDMV/OX32Y6htg/EGdPjNEVoLvngkysgodSaLgUstA6ewbNcg7A0vJw5P4EUXHgRMhkxRBvpUYgB6Fp/ZgMpyRLtcL/4joySV5u5JSvOpQmq2qrHN+I1wZ/I7pw5zr9IolfsRyWoz+sQdB04t89/1O/w1cDnyilFU="
 LINE_SECRET = "a06d44bf8e6d6079c04d3ba052078e25"
 SUPABASE_URL = "https://jvuhjuvvarpjcwpgwkny.supabase.co"
-# ใช้ Key ที่เฮียส่งมาล่าสุด (ตรวจสอบให้ชัวร์ว่าเป็น Service Role Key ในหน้า Dashboard นะครับ)
-SUPABASE_KEY = "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe" 
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2dWhqdXZ2YXJwamN3cGd3a255Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTMwNTQzMiwiZXhwIjoyMDkwODgxNDMyfQ.AhRvojeTCD9HmC5-jUXDzT_6wojUoe7rJ9kQoXpkslk" 
 MY_LIFF_ID = "2009693749-SfmWsP0l"
 
 line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
