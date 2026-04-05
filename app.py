@@ -69,8 +69,8 @@ def check_bills():
             for m in members:
                 member_list_ui.append({
                     "type": "box", "layout": "horizontal", "margin": "sm", "contents": [
-                        {"type": "text", "text": f"⏳ {m['member_name']}", "size": "sm", "color": "#111111", "flex": 4},
-                        {"type": "text", "text": "ยังไม่จ่าย", "size": "xs", "color": "#ff4d4d", "align": "end", "flex": 2}
+                        {"type": "text", "text": f" {m['member_name']}", "size": "sm", "color": "77614F#", "flex": 4},
+                        {"type": "text", "text": "ยังไม่จ่าย", "size": "xs", "color": "#E65C4E", "align": "end", "flex": 2}
                     ]
                 })
 
@@ -78,20 +78,20 @@ def check_bills():
                 "type": "bubble",
                 "body": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": f"📢 งวดที่ {current_inst}/{total_inst} มาแล้วครับ! 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
+                        {"type": "text", "text": f"📢 งวดที่ {current_inst}/{total_inst} มาแล้วครับ!", "weight": "bold", "color": "#ADC993", "size": "sm"},
                         {"type": "text", "text": bill_name, "weight": "bold", "size": "xl", "margin": "md"},
-                        {"type": "text", "text": f"กำหนดจ่าย: {due_time}", "size": "xs", "color": "#ff4d4d", "weight": "bold"},
-                        {"type": "text", "text": f"ยอดต่อคน: {sample['per_person']:,.2f} บาท", "size": "xs", "color": "#888888", "margin": "xs"},
+                        {"type": "text", "text": f"กำหนดจ่าย: {due_time}", "size": "xs", "color": "#77614F", "weight": "bold"},
+                        {"type": "text", "text": f"ยอดต่อคน: {sample['per_person']:,.2f} บาท", "size": "xs", "color": "#77614F", "margin": "xs"},
                         {"type": "separator", "margin": "lg"},
                         {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "xs", "contents": member_list_ui},
                         {"type": "separator", "margin": "lg"},
-                        {"type": "text", "text": "* มะมงตามเฉพาะงวดที่ถึงกำหนดครับ 🐾", "size": "xs", "color": "#aaaaaa", "margin": "md"}
+                        {"type": "text", "text": "* อัปเดตสถานะล่าสุด โฮ่ง", "size": "xs", "color": "#aaaaaa", "margin": "md"}
                     ]
                 },
                 "footer": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "button", "style": "primary", "color": "#1DB446", "action": {
-                            "type": "uri", "label": "✅ แจ้งจ่ายเงิน / ดูทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
+                        {"type": "button", "style": "primary", "color": "#ADC993", "action": {
+                            "type": "uri", "label": "แจ้งจ่ายเงิน / ดูทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
                         }}
                     ]
                 }
@@ -120,7 +120,7 @@ def handle_postback(event):
         bill_id = params['bill_id']
         bill_name = params.get('name', 'รายการออม')
         supabase.table("bills").update({"status": "paid"}).eq("id", bill_id).execute()
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 มะมงบันทึกว่าคุณจ่าย '{bill_name}' เรียบร้อยแล้วครับ! 🐾"))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"มะมงบันทึกว่าคุณจ่าย '{bill_name}' เรียบร้อยแล้วครับ! "))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -136,17 +136,17 @@ def handle_message(event):
         group_id = 'personal'
 
     if text == "มะมง":
-        reply_text = "สวัสดีครับ มะมงมาแล้วครับผม 🐶 จะให้มะหมาตัวนี้ช่วยเรื่องอะไรดีครับเฮีย?"
+        reply_text = "สวัสดีครับ มะมงมาแล้วครับผม 🐶 จะให้มะหมาตัวนี้ช่วยเรื่องอะไรดีครับ"
         flex_menu = {
             "type": "bubble",
             "body": {
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
-                    {"type": "text", "text": "🐾 มะมงยินดีบริการครับผม!", "weight": "bold", "size": "lg", "align": "center"},
+                    {"type": "text", "text": "มะมงยินดีบริการ โฮ่ง โฮ่ง!🐾", "weight": "bold", "size": "lg", "align": "center"},
                     {"type": "text", "text": reply_text, "size": "sm", "wrap": True, "margin": "sm", "color": "#666666"},
-                    {"type": "button", "style": "primary", "color": "#1DB446", "margin": "md", "action": {"type": "uri", "label": "💰 สร้างรายการออมใหม่", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
-                    {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "uri", "label": "📊 ดูสถานะคนจ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
+                    {"type": "button", "style": "primary", "color": "#ADC993", "margin": "md", "action": {"type": "uri", "label": "🪙 สร้างรายการออม", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
+                    {"type": "button", "style": "secondary", "color": "#F5EFE4", "margin": "md", "action": {"type": "uri", "label": "📄 ดูสถานะคนจ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
                 ]
             }
         }
