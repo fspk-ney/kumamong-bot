@@ -1,5 +1,5 @@
 import os
-import pytz  # เพิ่ม Library สำหรับจัดการเวลาไทย
+import pytz
 from flask import Flask, request, abort, send_from_directory
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -22,27 +22,28 @@ handler = WebhookHandler(LINE_SECRET)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.route('/')
-def serve_index(): return send_from_directory('.', 'index.html')
+def serve_index(): 
+    return send_from_directory('.', 'index.html')
 
 @app.route('/list')
-def serve_list(): return send_from_directory('.', 'list.html')
+def serve_list(): 
+    return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงิน (โหมดทดสอบ: ทวงทันทีที่มีบิลค้าง) ---
+# --- 🚀 ระบบทวงเงิน (โหมดทดสอบ: ปรับให้ทวงเข้ากลุ่มได้) ---
 @app.route('/check_bills')
 def check_bills():
-    # ตั้งค่า Timezone เป็นเวลาไทย
     tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(tz)
     
-    # ดึงทุกบิลที่สถานะยังเป็น 'pending' (ไม่สนวันที่/เวลา เพื่อทดสอบระบบ)
+    # ดึงบิลที่ค้างชำระ
     res = supabase.table("bills").select("*").eq("status", "pending").execute()
     
     print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] เริ่มการทดสอบทวงเงิน... พบ {len(res.data)} รายการ")
     
     for bill in res.data:
         try:
-            # กำหนดคนรับ (ส่งหาคนที่เราเลือกให้ออมด้วย)
-            receiver_id = bill.get('target_user_id') or bill['created_by']
+            # ✨ จุดที่แก้ 1: เลือกส่งเข้า group_id ถ้ามี ถ้าไม่มีค่อยส่งส่วนตัว
+            target_destination = bill.get('group_id') or bill.get('target_user_id') or bill['created_by']
             
             flex = {
                 "type": "bubble",
@@ -62,12 +63,9 @@ def check_bills():
                 ]}
             }
             
-            # ส่ง Flex Message
-            line_bot_api.push_message(receiver_id, FlexSendMessage(alt_text="ได้เวลาออมเงิน!", contents=flex))
+            # ส่งหาเป้าหมาย (กลุ่มหรือส่วนตัวตามที่บันทึกไว้)
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text="ได้เวลาออมเงิน!", contents=flex))
             print(f"ส่งทวงบิล {bill['bill_name']} สำเร็จ!")
-
-            # หมายเหตุ: ในโหมดทดสอบนี้ เราจะไม่เปลี่ยนวันที่ next_due เพื่อให้เฮียทดสอบการส่งซ้ำๆ ได้
-            # จนกว่าเฮียจะกดปุ่ม "จ่ายเรียบร้อยแล้ว" สถานะถึงจะเปลี่ยนเป็น 'paid' และหยุดทวงครับ
 
         except Exception as e:
             print(f"Error ทวงเงินบิล {bill.get('id')}: {e}")
@@ -78,8 +76,10 @@ def check_bills():
 def callback():
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
-    try: handler.handle(body, signature)
-    except InvalidSignatureError: abort(400)
+    try: 
+        handler.handle(body, signature)
+    except InvalidSignatureError: 
+        abort(400)
     return 'OK'
 
 @handler.add(PostbackEvent)
@@ -146,10 +146,12 @@ def handle_message(event):
             data = {
                 "bill_name": goal, "total_amount": total, "per_person": per_person,
                 "status": "pending", "created_by": user_id, "freq_unit": unit,
-                "next_due": start, "remind_time": time, "target_user_id": t_id, "member_name": t_name
+                "next_due": start, "remind_time": time, "target_user_id": t_id, 
+                "member_name": t_name,
+                "group_id": group_id  # ✨ จุดที่แก้ 2: เพิ่มการบันทึก group_id ลงฐานข้อมูล
             }
             supabase.table("bills").insert(data).execute()
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' ของ {t_name} เรียบร้อย! เดี๋ยวคุ้มมงจัดการทวงให้เองเมี๊ยว!"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' ของ {t_name} เรียบร้อย! เดี๋ยวคุ้มมงจัดการทวงให้ในกลุ่มนี้เลยเมี๊ยว!"))
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาด: {str(e)}"))
 
