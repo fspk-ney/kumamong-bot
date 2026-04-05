@@ -29,18 +29,27 @@ def serve_index():
 def serve_list():
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงิน (คงเดิม) ---
+# --- 🚀 ระบบทวงเงิน (ปรับปรุงให้รองรับรายนาที) ---
 @app.route('/check_bills')
 def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(tz)
+    # สร้าง String เวลาปัจจุบันเพื่อไปเทียบกับ Database (รูปแบบ YYYY-MM-DD HH:MM:SS)
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
     
-    res = supabase.table("bills").select("*").execute()
+    # แก้ SQL: ดึงเฉพาะรายการที่ "ถึงกำหนดแล้ว (<= now)" และ "ยังไม่จ่าย"
+    res = supabase.table("bills") \
+        .select("*") \
+        .lte("next_due", now_str) \
+        .neq("status", "paid") \
+        .execute()
+
     if not res.data:
-        return "No bills found", 200
+        return "No bills due at this time", 200
     
     grouped_bills = {}
     for bill in res.data:
+        # จัดกลุ่มตามชื่อบิลและกลุ่ม เพื่อส่ง Flex อันเดียวต่อกลุ่ม
         group_key = f"{bill['bill_name']}_{bill.get('group_id', 'personal')}"
         if group_key not in grouped_bills:
             grouped_bills[group_key] = []
@@ -51,9 +60,6 @@ def check_bills():
             bill_name = members[0]['bill_name']
             target_destination = members[0].get('group_id') or members[0].get('target_user_id') or members[0]['created_by']
             
-            all_paid = all(m['status'] == 'paid' for m in members)
-            if all_paid: continue
-
             member_list_ui = []
             for m in members:
                 is_paid = m['status'] == 'paid'
@@ -72,13 +78,13 @@ def check_bills():
                 "type": "bubble",
                 "body": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": "💰 รายละเอียดบิลกลุ่มโดยมะมง 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
+                        {"type": "text", "text": "💰 มะมงมาทวงเงินแล้วครับเฮีย! 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
                         {"type": "text", "text": bill_name, "weight": "bold", "size": "xl", "margin": "md"},
                         {"type": "text", "text": f"ยอดต่อคน: {members[0]['per_person']:,.2f} บาท", "size": "xs", "color": "#888888"},
                         {"type": "separator", "margin": "lg"},
                         {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "xs", "contents": member_list_ui},
                         {"type": "separator", "margin": "lg"},
-                        {"type": "text", "text": "* มะมงอัปเดตให้ล่าสุดครับ 🐾", "size": "xs", "color": "#aaaaaa", "margin": "md"}
+                        {"type": "text", "text": f"* ครบกำหนดเมื่อ: {members[0]['next_due']}", "size": "xs", "color": "#aaaaaa", "margin": "md"}
                     ]
                 },
                 "footer": {
@@ -89,7 +95,7 @@ def check_bills():
                     ]
                 }
             }
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"มะมงอัปเดตบิล {bill_name}", contents=flex))
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"มะมงทวงบิล {bill_name}", contents=flex))
         except Exception as e:
             print(f"Error in check_bills: {e}")
             
@@ -166,7 +172,6 @@ def handle_message(event):
             base_time = datetime.strptime(f"{start_str} {time_str}", "%Y-%m-%d %H:%M")
 
             for i in range(total_installments):
-                # --- เพิ่มเงื่อนไขความถี่ 5 นาที และ 10 นาที ---
                 if unit == "5_minutes":
                     due_time = base_time + timedelta(minutes=i * 5)
                 elif unit == "10_minutes":
