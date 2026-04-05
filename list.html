@@ -69,6 +69,7 @@
 
     <script>
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
+        let allProjects = []; // เก็บข้อมูลไว้ที่นี่แทนการส่งผ่าน HTML
 
         async function loadBills() {
             const listDiv = document.getElementById('bill-list');
@@ -88,12 +89,14 @@
                 projects[bill.bill_name].installments[bill.next_due].push(bill);
             });
 
+            allProjects = Object.values(projects);
             listDiv.innerHTML = '';
-            Object.values(projects).forEach(proj => {
+            
+            allProjects.forEach((proj, idx) => {
                 const totalInst = Object.keys(proj.installments).length;
                 listDiv.innerHTML += `
                     <div class="card bill-card">
-                        <div class="card-content" onclick="showInstallments('${encodeURIComponent(JSON.stringify(proj))}')">
+                        <div class="card-content" onclick="showInstallments(${idx})">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <h5 class="fw-bold mb-0 text-success">🎯 ${proj.name}</h5>
@@ -103,30 +106,30 @@
                             </div>
                         </div>
                         <div class="card-footer-actions">
-                            <button class="btn-main-edit" onclick="openEditProject('${proj.name}', '${proj.total}')">แก้ไข</button>
-                            <button class="btn-main-delete" onclick="deleteProject('${proj.name}')">ลบ</button>
+                            <button class="btn-main-edit" onclick="openEditProject(${idx})">แก้ไข</button>
+                            <button class="btn-main-delete" onclick="deleteProject('${proj.name.replace(/'/g, "\\'")}')">ลบ</button>
                         </div>
                     </div>
                 `;
             });
         }
 
-        function showInstallments(encodedData) {
-            const proj = JSON.parse(decodeURIComponent(encodedData));
+        function showInstallments(idx) {
+            const proj = allProjects[idx];
             const modalBody = document.getElementById('modal-body');
             document.getElementById('modal-title').innerText = proj.name;
 
             let html = `<p class="text-muted small mb-3">เลือกว่าจะจัดการงวดไหนครับผม 🐾</p>`;
             const sortedDates = Object.keys(proj.installments).sort();
             
-            sortedDates.forEach((date, index) => {
+            sortedDates.forEach((date, i) => {
                 const members = proj.installments[date];
                 const paid = members.filter(m => m.status === 'paid').length;
                 html += `
-                    <div class="inst-card p-3" onclick="showMemberStatus('${encodeURIComponent(JSON.stringify({date, members, projName: proj.name}))}')">
+                    <div class="inst-card p-3" onclick="showMemberStatus(${idx}, '${date}')">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <div class="fw-bold">งวดที่ ${index + 1}</div>
+                                <div class="fw-bold">งวดที่ ${i + 1}</div>
                                 <small class="text-muted">📅 ${date}</small>
                             </div>
                             <span class="badge ${paid === members.length ? 'bg-success' : 'bg-warning text-dark'} status-badge">
@@ -140,13 +143,14 @@
             new bootstrap.Modal(document.getElementById('mainModal')).show();
         }
 
-        function showMemberStatus(encodedInst) {
-            const data = JSON.parse(decodeURIComponent(encodedInst));
+        function showMemberStatus(projIdx, date) {
+            const proj = allProjects[projIdx];
+            const members = proj.installments[date];
             const modalBody = document.getElementById('modal-body');
-            document.getElementById('modal-title').innerText = `${data.projName} (${data.date})`;
+            document.getElementById('modal-title').innerText = `${proj.name} (${date})`;
 
-            let html = `<button class="btn btn-sm btn-outline-secondary mb-3" onclick="location.reload()">⬅ ย้อนกลับ</button>`;
-            data.members.forEach(m => {
+            let html = `<button class="btn btn-sm btn-outline-secondary mb-3" onclick="showInstallments(${projIdx})">⬅ ย้อนกลับ</button>`;
+            members.forEach(m => {
                 const isPaid = m.status === 'paid';
                 html += `
                     <div class="d-flex justify-content-between align-items-center p-2 mb-2 border-bottom">
@@ -169,10 +173,11 @@
             if (error) alert(error.message); else location.reload();
         }
 
-        function openEditProject(name, total) {
-            document.getElementById('edit-old-name').value = name;
-            document.getElementById('edit-name').value = name;
-            document.getElementById('edit-total').value = total;
+        function openEditProject(idx) {
+            const proj = allProjects[idx];
+            document.getElementById('edit-old-name').value = proj.name;
+            document.getElementById('edit-name').value = proj.name;
+            document.getElementById('edit-total').value = proj.total;
             new bootstrap.Modal(document.getElementById('editModal')).show();
         }
 
@@ -180,11 +185,7 @@
             const oldName = document.getElementById('edit-old-name').value;
             const newName = document.getElementById('edit-name').value;
             const newTotal = document.getElementById('edit-total').value;
-
-            const { error } = await client.from('bills')
-                .update({ bill_name: newName, total_amount: parseFloat(newTotal) })
-                .eq('bill_name', oldName);
-
+            const { error } = await client.from('bills').update({ bill_name: newName, total_amount: parseFloat(newTotal) }).eq('bill_name', oldName);
             if (error) alert(error.message); else location.reload();
         }
 
