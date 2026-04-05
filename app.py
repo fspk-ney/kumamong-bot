@@ -153,12 +153,12 @@ def handle_message(event):
         }
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="คุ้มมงมาแล้ว!", contents=flex_menu))
 
-    elif "[คำสั่งออมเงิน]" in text:
+   elif "[คำสั่งออมเงิน]" in text:
         try:
             lines = text.split('\n')
             goal = lines[1].split(': ')[1]
-            total = float(lines[2].split(': ')[1])
-            count = int(lines[3].split(': ')[1])
+            total_project_amount = float(lines[2].split(': ')[1]) # ยอดเต็มทั้งโปรเจกต์
+            total_installments = int(lines[3].split(': ')[1])    # จำนวนงวด
             unit = lines[4].split(': ')[1]
             start = lines[5].split(': ')[1]
             time = lines[6].split(': ')[1]
@@ -166,13 +166,38 @@ def handle_message(event):
             t_ids = [i.strip() for i in lines[7].split(': ')[1].split(',')]
             t_names = [n.strip() for n in lines[8].split(': ')[1].split(',')]
 
-            per_person = round(total / count, 2)
+            # 🧮 คำนวณยอดหาร
+            num_people = len(t_ids)
+            amount_per_person_total = total_project_amount / num_people
+            amount_per_person_per_period = round(amount_per_person_total / total_installments, 2)
             
             for target_id, target_name in zip(t_ids, t_names):
+                # 🔍 เช็กยอดค้างชำระเดิม (System Carry Over)
+                old_bills = supabase.table("bills") \
+                    .select("per_person") \
+                    .eq("target_user_id", target_id) \
+                    .eq("bill_name", goal) \
+                    .eq("status", "pending") \
+                    .execute()
+                
+                unpaid_amount = sum(item['per_person'] for item in old_bills.data)
+                
+                # ยอดงวดนี้ + ยอดที่เคยค้าง
+                final_pay_this_period = amount_per_person_per_period + unpaid_amount
+
+                if unpaid_amount > 0:
+                    supabase.table("bills") \
+                        .update({"status": "carried_over"}) \
+                        .eq("target_user_id", target_id) \
+                        .eq("bill_name", goal) \
+                        .eq("status", "pending") \
+                        .execute()
+
+                # 📝 บันทึกบิล
                 data = {
                     "bill_name": goal, 
-                    "total_amount": total, 
-                    "per_person": per_person,
+                    "total_amount": total_project_amount, # เก็บยอดเต็มไว้ดูได้
+                    "per_person": final_pay_this_period,  # ยอดที่ต้องจ่ายจริงงวดนี้
                     "status": "pending", 
                     "created_by": user_id, 
                     "freq_unit": unit,
@@ -184,9 +209,20 @@ def handle_message(event):
                 }
                 supabase.table("bills").insert(data).execute()
             
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' เรียบร้อย! คุ้มมงจะคอยทวงทุกคนในกลุ่มให้เองเมี๊ยว!"))
+            # ตอบกลับยืนยันยอดที่หารแล้ว
+            confirm_msg = (
+                f"✅ บันทึกรายการ '{goal}' เรียบร้อย!\n"
+                f"💰 ยอดรวมทั้งหมด: {total_project_amount:,.2f} บาท\n"
+                f"👥 หาร {num_people} คน ตกคนละ: {amount_per_person_total:,.2f} บาท\n"
+                f"📅 แบ่งออม {total_installments} งวด\n"
+                f"💵 ยอดที่ต้องจ่ายงวดนี้: {amount_per_person_per_period:,.2f} บาท/คน"
+            )
+            if unpaid_amount > 0: confirm_msg += f"\n⚠️ (มีทบยอดค้างชำระเก่าให้แล้วเมี๊ยว)"
+            
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=confirm_msg))
+
         except Exception as e:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาด: {str(e)}"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาดในการคำนวณ: {str(e)}"))
 
 if __name__ == "__main__": 
     app.run(port=5000)
