@@ -27,11 +27,10 @@ def serve_index(): return send_from_directory('.', 'index.html')
 @app.route('/list')
 def serve_list(): return send_from_directory('.', 'list.html')
 
-@app.route('/check_bills')
-def check_bills():
-    tz = pytz.timezone('Asia/Bangkok')
+# --- 🚀 ฟังก์ชันหลัก: เช็คและพ่นบิล (ดึงออกมาเป็นฟังก์ชันแยกเพื่อให้เรียกซ้ำได้) ---
+def trigger_bill_notification(target_group_id=None):
     res = supabase.table("bills").select("*").execute()
-    if not res.data: return "No bills found", 200
+    if not res.data: return
     
     grouped_bills = {}
     for bill in res.data:
@@ -41,8 +40,13 @@ def check_bills():
 
     for key, members in grouped_bills.items():
         try:
+            # ถ้าส่ง target_group_id มา ให้ส่งเฉพาะกลุ่มนั้น (กันบิลกลุ่มอื่นเด้งรบกวน)
+            current_group = members[0].get('group_id') or 'personal'
+            if target_group_id and current_group != target_group_id: continue
+
             bill_name = members[0]['bill_name']
             target = members[0].get('group_id') or members[0].get('target_user_id') or members[0]['created_by']
+            
             if all(m['status'] == 'paid' for m in members): continue 
 
             member_list_ui = []
@@ -77,6 +81,10 @@ def check_bills():
             }
             line_bot_api.push_message(target, FlexSendMessage(alt_text=f"มะมงอัปเดตบิล {bill_name}", contents=flex))
         except Exception as e: print(f"Error: {e}")
+
+@app.route('/check_bills')
+def check_bills_route():
+    trigger_bill_notification()
     return "Check Complete", 200
 
 @app.route("/callback", methods=['POST'])
@@ -93,6 +101,9 @@ def handle_postback(event):
     if params.get('action') == 'pay':
         supabase.table("bills").update({"status": "paid"}).eq("id", params['bill_id']).execute()
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 มะมงบันทึกว่าจ่ายเรียบร้อยแล้วครับ! 🐾"))
+        # หลังจากกดจ่าย ให้พ่นบิลอัปเดตออกมาใหม่ทันที
+        group_id = getattr(event.source, 'group_id', getattr(event.source, 'room_id', None))
+        trigger_bill_notification(group_id)
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -123,7 +134,6 @@ def handle_message(event):
             start_dt = datetime.strptime(f"{lines[5].split(': ')[1]} {lines[6].split(': ')[1]}", "%Y-%m-%d %H:%M")
             t_ids = [i.strip() for i in lines[7].split(': ')[1].split(',')]
             t_names = [n.strip() for n in lines[8].split(': ')[1].split(',')]
-
             per_period = round((total_amt / len(t_ids)) / installments, 2)
 
             for i in range(installments):
@@ -140,7 +150,10 @@ def handle_message(event):
                         "target_user_id": tid, "member_name": tname, "group_id": group_id, "freq_unit": unit
                     }).execute()
             
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ มะมงบันทึกรายการ '{goal}' ({unit}) เรียบร้อย {installments} งวดครับเฮีย!"))
+            # --- จุดสำคัญ: บันทึกเสร็จแล้วสั่งพ่น Flex Message ทันที ---
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ มะมงบันทึกเรียบร้อย! กำลังสรุปยอดให้ครับเฮีย..."))
+            trigger_bill_notification(group_id)
+            
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"โฮ่ง! มะมงคำนวณพลาด: {str(e)}"))
 
