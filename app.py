@@ -1,17 +1,16 @@
 import os
 import pytz
 from flask import Flask, request, abort, send_from_directory
+from flask_cors import CORS  # <--- นำเข้า CORS
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, PostbackEvent
 from supabase import create_client, Client
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from flask_cors import CORS # <--- เพิ่มอันนี้
-app = Flask(__name__)
-CORS(app) # <--- เพิ่มอันนี้เพื่อให้หน้าเว็บยิงเข้า API ได้ไม่ติดบล็อก
 
 app = Flask(__name__)
+CORS(app)  # <--- เปิดใช้งาน CORS ทันทีหลังจากสร้าง app
 
 # --- ข้อมูล Config ของเฮีย ---
 LINE_ACCESS_TOKEN = "UXPznDfBmyuDMV/OX32Y6htg/EGdPjNEVoLvngkysgodSaLgUstA6ewbNcg7A0vJw5P4EUXHgRMhkxRBvpUYgB6Fp/ZgMpyRLtcL/4joySV5u5JSvOpQmq2qrHN+I1wZ/I7pw5zr9IolfsRyWoz+sQdB04t89/1O/w1cDnyilFU="
@@ -32,7 +31,7 @@ def serve_index():
 def serve_list():
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 [ใหม่] รับข้อมูลจากหน้าเว็บโดยตรง (ไม่ผ่านแแชท) ---
+# --- 🚀 [ใหม่] รับข้อมูลจากหน้าเว็บโดยตรง ---
 @app.route("/create_saving_api", methods=['POST'])
 def create_saving_api():
     data = request.get_json()
@@ -79,9 +78,10 @@ def create_saving_api():
 
         return "OK", 200
     except Exception as e:
+        print(f"Error in API: {e}") # ช่วย debug ดูที่ log ของ Render
         return str(e), 500
 
-# --- 🚀 ระบบทวงเงิน (คงเดิม) ---
+# --- 🚀 ระบบทวงเงิน ---
 @app.route('/check_bills')
 def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
@@ -187,44 +187,6 @@ def handle_message(event):
             }
         }
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="มะมงมาแล้วครับ!", contents=flex_menu))
-
-    # --- ส่วนรับข้อความแบบเดิม (ถ้าเฮียยังอยากพิมพ์เองก็ยังใช้ได้) ---
-    elif "[คำสั่งออมเงิน]" in text:
-        try:
-            lines = text.split('\n')
-            goal = lines[1].split(': ')[1]
-            total_project_amount = float(lines[2].split(': ')[1])
-            total_installments = int(lines[3].split(': ')[1])
-            unit = lines[4].split(': ')[1]
-            start_str = lines[5].split(': ')[1]
-            time_str = lines[6].split(': ')[1]
-            t_ids = [i.strip() for i in lines[7].split(': ')[1].split(',')]
-            t_names = [n.strip() for n in lines[8].split(': ')[1].split(',')]
-
-            num_people = len(t_ids)
-            amount_per_person_total = total_project_amount / num_people
-            amount_per_person_per_period = round(amount_per_person_total / total_installments, 2)
-            base_time = datetime.strptime(f"{start_str} {time_str}", "%Y-%m-%d %H:%M")
-
-            for i in range(total_installments):
-                if unit == "5_minutes": due_time = base_time + timedelta(minutes=i * 5)
-                elif unit == "10_minutes": due_time = base_time + timedelta(minutes=i * 10)
-                elif unit == "1d": due_time = base_time + timedelta(days=i)
-                elif unit == "7d": due_time = base_time + timedelta(weeks=i)
-                elif unit == "1m": due_time = base_time + relativedelta(months=i)
-                else: due_time = base_time + timedelta(days=i)
-
-                due_str = due_time.strftime('%Y-%m-%d %H:%M:%S')
-                for tid, tname in zip(t_ids, t_names):
-                    supabase.table("bills").insert({
-                        "bill_name": goal, "total_amount": total_project_amount, "per_person": amount_per_person_per_period,
-                        "status": "pending", "created_by": user_id, "freq_unit": unit, "next_due": due_str,
-                        "remind_time": time_str, "target_user_id": tid, "member_name": tname, "group_id": group_id
-                    }).execute()
-            
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"รับทราบครับเฮีย! 🐾 มะมงบันทึกรายการ '{goal}' ให้เรียบร้อย เตรียมรอแจ้งเตือนได้เลยครับ"))
-        except Exception as e:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"โฮ่ง! มะมงคำนวณพลาด: {str(e)}"))
 
 if __name__ == "__main__":
     app.run(port=5000)
