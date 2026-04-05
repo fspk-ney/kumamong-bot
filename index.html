@@ -27,14 +27,13 @@
 
     <div class="container">
         <div class="card p-4">
-            <h4 class="text-center fw-bold mb-4">🪙สร้างรายการออมใหม่</h4>
+            <h4 class="text-center fw-bold mb-4">🪙 สร้างรายการออมใหม่</h4>
             
             <div class="mb-3">
                 <label class="form-label">เลือกเพื่อนที่จะออมด้วย (เลือกได้หลายคน)</label>
                 <div id="friend-list" class="friend-list-container">
                     <div class="text-muted small p-2">กำลังโหลดรายชื่อเพื่อน...</div>
                 </div>
-                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "มะมง" ในกลุ่มก่อน</small>
             </div>
 
             <div class="mb-3">
@@ -55,8 +54,7 @@
                 <div class="col-6 mb-3">
                     <label class="form-label"> เก็บซ้ำทุก ๆ</label>
                     <select id="unit" class="form-select">
-                        <option value="5_minutes">ทุก ๆ 5 นาที (สายเร่ง)</option>
-                        <option value="10_minutes">ทุก ๆ 10 นาที (ทดสอบ)</option>
+                        <option value="5_minutes">ทุก ๆ 5 นาที (เทส)</option>
                         <option value="1d">ทุกวัน</option>
                         <option value="7d">ทุกสัปดาห์</option>
                         <option value="1m">ทุกเดือน</option>
@@ -93,8 +91,8 @@
                 const gid = params.get('groupId') || 'personal';
 
                 const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
-
                 const listDiv = document.getElementById('friend-list');
+                
                 if (error || !members || members.length === 0) {
                     listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ มะมง ในกลุ่มก่อน)</div>';
                 } else {
@@ -127,43 +125,28 @@
             const start = document.getElementById('start').value;
             const time = document.getElementById('time').value;
 
-            if(!goal || !total) return alert('กรอกข้อมูลให้ครบก่อนนะครับ');
-
             const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
             const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
-            
-            // ดึง groupId จาก URL
             const params = new URLSearchParams(window.location.search);
             const groupId = params.get('groupId') || 'personal';
 
             const btn = document.getElementById('saveBtn');
-            btn.disabled = true;
-            btn.innerText = "มะมงกำลังบันทึก...";
-
-            const payload = {
-                goal: goal,
-                total: total,
-                count: count,
-                unit: unit,
-                start: start,
-                time: time,
-                targetIds: targetIds,
-                targetNames: targetNames,
-                userId: liff.getContext()?.userId || '',
-                groupId: groupId // ส่ง groupId ไปให้หลังบ้านด้วย
-            };
+            btn.disabled = true; btn.innerText = "กำลังบันทึก...";
 
             try {
                 await fetch(RENDER_WEBHOOK_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        goal, total, count, unit, start, time, 
+                        targetIds, targetNames, groupId,
+                        userId: liff.getContext()?.userId || ''
+                    })
                 });
-                liff.closeWindow();
+                liff.closeWindow(); // ปิดหน้าต่างทันที บอทจะตอบกลับเองหลังบ้าน
             } catch (err) {
-                btn.disabled = false;
-                btn.innerText = "บันทึกรายการออม โฮ่ง!";
-                alert('ส่งข้อมูลไม่สำเร็จ: ' + err.message);
+                btn.disabled = false; btn.innerText = "บันทึกรายการออม โฮ่ง!";
+                alert('เกิดข้อผิดพลาด: ' + err.message);
             }
         }
         main();
