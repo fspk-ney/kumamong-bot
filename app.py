@@ -1,4 +1,5 @@
 import os
+import pytz  # เพิ่ม Library สำหรับจัดการเวลาไทย
 from flask import Flask, request, abort, send_from_directory
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -26,57 +27,52 @@ def serve_index(): return send_from_directory('.', 'index.html')
 @app.route('/list')
 def serve_list(): return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงินอัตโนมัติ (เช็กทุก 30 นาที) ---
+# --- 🚀 ระบบทวงเงิน (โหมดทดสอบ: ทวงทันทีที่มีบิลค้าง) ---
 @app.route('/check_bills')
 def check_bills():
-    now = datetime.now()
-    today = now.date().isoformat()
-    # ดึงบิลที่ถึงกำหนดวันนี้
-    res = supabase.table("bills").select("*").eq("next_due", today).execute()
+    # ตั้งค่า Timezone เป็นเวลาไทย
+    tz = pytz.timezone('Asia/Bangkok')
+    now = datetime.now(tz)
+    
+    # ดึงทุกบิลที่สถานะยังเป็น 'pending' (ไม่สนวันที่/เวลา เพื่อทดสอบระบบ)
+    res = supabase.table("bills").select("*").eq("status", "pending").execute()
+    
+    print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] เริ่มการทดสอบทวงเงิน... พบ {len(res.data)} รายการ")
     
     for bill in res.data:
         try:
-            remind_str = bill.get('remind_time', '08:00')
-            remind_time = datetime.strptime(remind_str, "%H:%M").time()
-            target_dt = datetime.combine(now.date(), remind_time)
+            # กำหนดคนรับ (ส่งหาคนที่เราเลือกให้ออมด้วย)
+            receiver_id = bill.get('target_user_id') or bill['created_by']
             
-            # ถ้าถึงเวลาทวง (ช่วง 30 นาที)
-            if target_dt <= now < (target_dt + timedelta(minutes=30)):
-                receiver_id = bill.get('target_user_id') or bill['created_by']
-                
-                flex = {
-                    "type": "bubble",
-                    "header": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "🔔 คุ้มมงมาทวงเงินแล้วเมี๊ยว!", "weight": "bold", "color": "#1DB446"}]},
-                    "body": {"type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": f"🎯 รายการ: {bill['bill_name']}", "weight": "bold", "size": "md"},
-                        {"type": "text", "text": f"💰 ยอดที่ต้องออม: {bill['per_person']:,.2f} บาท", "size": "xl", "margin": "md", "color": "#111111"},
-                        {"type": "text", "text": f"👤 สมาชิก: {bill['member_name']}", "size": "sm", "color": "#888888", "margin": "sm"}
-                    ]},
-                    "footer": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": [
-                        {"type": "button", "style": "primary", "color": "#1DB446", "action": {
-                            "type": "postback", "label": "✅ จ่ายเรียบร้อยแล้ว", "data": f"action=pay&bill_id={bill['id']}&name={bill['bill_name']}"
-                        }},
-                        {"type": "button", "style": "link", "height": "sm", "action": {
-                            "type": "uri", "label": "📊 ดูรายการทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
-                        }}
-                    ]}
-                }
-                line_bot_api.push_message(receiver_id, FlexSendMessage(alt_text="ได้เวลาออมเงิน!", contents=flex))
-                
-                # คำนวณงวดถัดไป
-                unit = bill.get('freq_unit', '7d')
-                curr_due = datetime.strptime(bill['next_due'], '%Y-%m-%d')
-                if 'd' in unit:
-                    nxt = curr_due + timedelta(days=int(unit.replace('d', '')))
-                else:
-                    nxt = curr_due + relativedelta(months=int(unit.replace('m', '')))
-                
-                # อัปเดตงวดถัดไป และรีเซ็ตสถานะเป็น pending
-                supabase.table("bills").update({"next_due": nxt.date().isoformat(), "status": "pending"}).eq("id", bill['id']).execute()
+            flex = {
+                "type": "bubble",
+                "header": {"type": "box", "layout": "vertical", "contents": [{"type": "text", "text": "🔔 คุ้มมงมาทวงเงินแล้วเมี๊ยว!", "weight": "bold", "color": "#1DB446"}]},
+                "body": {"type": "box", "layout": "vertical", "contents": [
+                    {"type": "text", "text": f"🎯 รายการ: {bill['bill_name']}", "weight": "bold", "size": "md"},
+                    {"type": "text", "text": f"💰 ยอดที่ต้องออม: {bill['per_person']:,.2f} บาท", "size": "xl", "margin": "md", "color": "#111111"},
+                    {"type": "text", "text": f"👤 สมาชิก: {bill['member_name']}", "size": "sm", "color": "#888888", "margin": "sm"}
+                ]},
+                "footer": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": [
+                    {"type": "button", "style": "primary", "color": "#1DB446", "action": {
+                        "type": "postback", "label": "✅ จ่ายเรียบร้อยแล้ว", "data": f"action=pay&bill_id={bill['id']}&name={bill['bill_name']}"
+                    }},
+                    {"type": "button", "style": "link", "height": "sm", "action": {
+                        "type": "uri", "label": "📊 ดูรายการทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
+                    }}
+                ]}
+            }
+            
+            # ส่ง Flex Message
+            line_bot_api.push_message(receiver_id, FlexSendMessage(alt_text="ได้เวลาออมเงิน!", contents=flex))
+            print(f"ส่งทวงบิล {bill['bill_name']} สำเร็จ!")
+
+            # หมายเหตุ: ในโหมดทดสอบนี้ เราจะไม่เปลี่ยนวันที่ next_due เพื่อให้เฮียทดสอบการส่งซ้ำๆ ได้
+            # จนกว่าเฮียจะกดปุ่ม "จ่ายเรียบร้อยแล้ว" สถานะถึงจะเปลี่ยนเป็น 'paid' และหยุดทวงครับ
+
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error ทวงเงินบิล {bill.get('id')}: {e}")
             
-    return "OK", 200
+    return "Check Complete", 200
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -101,7 +97,6 @@ def handle_message(event):
     text = event.message.text
     user_id = event.source.user_id
     
-    # --- 🛠 ปรับการดึง ID ให้แม่นยำขึ้น ---
     source = event.source
     if hasattr(source, 'group_id'):
         group_id = source.group_id
@@ -110,9 +105,7 @@ def handle_message(event):
     else:
         group_id = 'personal'
 
-    # --- 🤫 ระบบจำชื่อเพื่อน (ปรับปรุงให้ดึงชื่อได้ชัวร์ขึ้น) ---
     try:
-        # พยายามดึงชื่อจาก Profile (เพื่อนต้องแอดบอท)
         profile = line_bot_api.get_profile(user_id)
         display_name = profile.display_name
         
@@ -148,7 +141,7 @@ def handle_message(event):
             t_id = lines[7].split(': ')[1]
             t_name = lines[8].split(': ')[1]
 
-            per_person = round(total / count, 2) # คำนวณยอดต่อคนต่อรอบ
+            per_person = round(total / count, 2)
             
             data = {
                 "bill_name": goal, "total_amount": total, "per_person": per_person,
