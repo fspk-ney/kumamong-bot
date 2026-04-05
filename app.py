@@ -55,10 +55,9 @@ def create_saving_api():
 
         # บันทึกลง Supabase ทีละงวด
         for i in range(total_installments):
-            if unit == "5_minutes": due_time = base_time + timedelta(minutes=i * 5)
-            elif unit == "10_minutes": due_time = base_time + timedelta(minutes=i * 10)
-            elif unit == "1d": due_time = base_time + timedelta(days=i)
+            if unit == "1d": due_time = base_time + timedelta(days=i)
             elif unit == "7d": due_time = base_time + timedelta(weeks=i)
+            elif unit == "14d": due_time = base_time + timedelta(weeks=i*2)
             elif unit == "1m": due_time = base_time + relativedelta(months=i)
             else: due_time = base_time + timedelta(days=i)
 
@@ -182,7 +181,7 @@ def handle_message(event):
                     {"type": "text", "text": "มะมงยินดีบริการ โฮ่ง โฮ่ง!🐾", "weight": "bold", "size": "lg", "align": "center"},
                     {"type": "text", "text": reply_text, "size": "sm", "wrap": True, "margin": "sm", "color": "#666666"},
                     {"type": "button", "style": "primary", "color": "#ADC993", "margin": "md", "action": {"type": "uri", "label": "🪙 สร้างรายการออม", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
-                    {"type": "button", "style": "secondary", "color": "#F5EFE4", "margin": "md", "action": {"type": "uri", "label": "📄 ดูสถานะคนจ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
+                    {"type": "button", "style": "secondary", "color": "#F5EFE4", "margin": "md", "action": {"type": "uri", "label": "📄 เช็ครายการออม", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
                 ]
             }
         }
