@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>สร้างรายการออม 🐾</title>
+    <title>สร้างรายการออมกับมะมง 🐾</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -13,7 +13,6 @@
         .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .btn-success { background-color: #1DB446; border: none; border-radius: 12px; padding: 12px; font-weight: 600; transition: 0.3s; }
         .form-label { font-weight: 600; font-size: 0.9rem; color: #444; }
-        /* สไตล์สำหรับรายการเพื่อนแบบ Checkbox */
         .friend-list-container { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: white; }
         .friend-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; }
         .friend-item:last-child { border-bottom: none; }
@@ -35,7 +34,7 @@
                 <div id="friend-list" class="friend-list-container">
                     <div class="text-muted small p-2">กำลังโหลดรายชื่อเพื่อน...</div>
                 </div>
-                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "เมี๊ยว" ในกลุ่มก่อน</small>
+                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "มะมง" ในกลุ่มก่อน</small>
             </div>
 
             <div class="mb-3">
@@ -56,9 +55,10 @@
                 <div class="col-6 mb-3">
                     <label class="form-label">🔄 ความถี่</label>
                     <select id="unit" class="form-select">
-                        <option value="7d">ทุกอาทิตย์</option>
-                        <option value="1m">ทุกเดือน</option>
-                        <option value="1d">ทุกวัน (สายโหด)</option>
+                        <option value="10_minutes">ทุกๆ 10 นาที (ทดสอบ)</option>
+                        <option value="daily">ทุกวัน</option>
+                        <option value="weekly">ทุกสัปดาห์</option>
+                        <option value="monthly">ทุกเดือน</option>
                     </select>
                 </div>
             </div>
@@ -74,7 +74,7 @@
                 </div>
             </div>
 
-            <button id="saveBtn" class="btn btn-success w-100 shadow-sm" onclick="confirmSave()">บันทึกรายการออมเมี๊ยว!</button>
+            <button id="saveBtn" class="btn btn-success w-100 shadow-sm" onclick="confirmSave()">บันทึกรายการออม (มะมงจัดให้!)</button>
         </div>
     </div>
 
@@ -90,13 +90,12 @@
                 const params = new URLSearchParams(window.location.search);
                 const gid = params.get('groupId') || 'personal';
 
-                // ดึงรายชื่อสมาชิกจาก Supabase
                 const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
 
                 const listDiv = document.getElementById('friend-list');
                 
                 if (error || !members || members.length === 0) {
-                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ เมี๊ยว ในกลุ่มก่อน)</div>';
+                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ มะมง ในกลุ่มก่อน)</div>';
                 } else {
                     listDiv.innerHTML = '';
                     const seenIds = new Set();
@@ -117,9 +116,8 @@
         }
 
         function confirmSave() {
-            // ดึงเฉพาะคนที่ถูกติ๊กเลือก
             const checkedFriends = document.querySelectorAll('input[name="friend"]:checked');
-            if(checkedFriends.length === 0) return alert('เฮีย! ต้องเลือกเพื่อนอย่างน้อย 1 คนนะเมี๊ยว!');
+            if(checkedFriends.length === 0) return alert('เฮีย! ต้องเลือกเพื่อนอย่างน้อย 1 คนนะโฮ่ง!');
 
             const goal = document.getElementById('goal').value;
             const total = document.getElementById('total').value;
@@ -130,22 +128,21 @@
 
             if(!goal || !total) return alert('กรอกข้อมูลให้ครบก่อนนะเฮีย!');
 
-            // รวบรวม ID และ ชื่อ เป็น String คั่นด้วยคอมมา (Comma-separated)
             const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
             const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
 
             const btn = document.getElementById('saveBtn');
             btn.disabled = true;
-            btn.innerText = "กำลังบันทึก...";
+            btn.innerText = "มะมงกำลังบันทึก...";
 
-            // ส่งข้อความหาบอทตาม Format ที่ Python รอรับ
+            // ส่งค่า unit (ความถี่) ไปให้ Python ซึ่งรองรับ 10_minutes แล้ว
             const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}`;
             
             liff.sendMessages([{ type: 'text', text: text }])
                 .then(() => { liff.closeWindow(); })
                 .catch((err) => {
                     btn.disabled = false;
-                    btn.innerText = "บันทึกรายการออมเมี๊ยว!";
+                    btn.innerText = "บันทึกรายการออม (มะมงจัดให้!)";
                     alert('ส่งไม่สำเร็จ: ' + err.message);
                 });
         }

@@ -10,7 +10,7 @@ from dateutil.relativedelta import relativedelta
 
 app = Flask(__name__)
 
-# --- ข้อมูล Config ของเฮีย ---
+# --- Config ---
 LINE_ACCESS_TOKEN = "UXPznDfBmyuDMV/OX32Y6htg/EGdPjNEVoLvngkysgodSaLgUstA6ewbNcg7A0vJw5P4EUXHgRMhkxRBvpUYgB6Fp/ZgMpyRLtcL/4joySV5u5JSvOpQmq2qrHN+I1wZ/I7pw5zr9IolfsRyWoz+sQdB04t89/1O/w1cDnyilFU="
 LINE_SECRET = "a06d44bf8e6d6079c04d3ba052078e25"
 SUPABASE_URL = "https://jvuhjuvvarpjcwpgwkny.supabase.co"
@@ -22,49 +22,37 @@ handler = WebhookHandler(LINE_SECRET)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.route('/')
-def serve_index(): 
-    return send_from_directory('.', 'index.html')
+def serve_index(): return send_from_directory('.', 'index.html')
 
 @app.route('/list')
-def serve_list(): 
-    return send_from_directory('.', 'list.html')
+def serve_list(): return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงิน ---
 @app.route('/check_bills')
 def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
-    now = datetime.now(tz)
-    
     res = supabase.table("bills").select("*").execute()
-    if not res.data:
-        return "No bills found", 200
+    if not res.data: return "No bills found", 200
     
     grouped_bills = {}
     for bill in res.data:
-        group_key = f"{bill['bill_name']}_{bill.get('group_id', 'personal')}"
-        if group_key not in grouped_bills:
-            grouped_bills[group_key] = []
-        grouped_bills[group_key].append(bill)
+        key = f"{bill['bill_name']}_{bill.get('group_id', 'personal')}"
+        if key not in grouped_bills: grouped_bills[key] = []
+        grouped_bills[key].append(bill)
 
     for key, members in grouped_bills.items():
         try:
             bill_name = members[0]['bill_name']
-            target_destination = members[0].get('group_id') or members[0].get('target_user_id') or members[0]['created_by']
-            
-            all_paid = all(m['status'] == 'paid' for m in members)
-            if all_paid: continue 
+            target = members[0].get('group_id') or members[0].get('target_user_id') or members[0]['created_by']
+            if all(m['status'] == 'paid' for m in members): continue 
 
             member_list_ui = []
             for m in members:
                 is_paid = m['status'] == 'paid'
-                icon = "✅" if is_paid else "⏳"
                 color = "#1DB446" if is_paid else "#ff4d4d"
-                status_text = "จ่ายแล้ว" if is_paid else "ยังไม่จ่าย"
-
                 member_list_ui.append({
                     "type": "box", "layout": "horizontal", "margin": "sm", "contents": [
-                        {"type": "text", "text": f"{icon} {m['member_name']}", "size": "sm", "color": "#111111", "flex": 4},
-                        {"type": "text", "text": status_text, "size": "xs", "color": color, "align": "end", "flex": 2}
+                        {"type": "text", "text": f"{'✅' if is_paid else '⏳'} {m['member_name']}", "size": "sm", "flex": 4},
+                        {"type": "text", "text": "จ่ายแล้ว" if is_paid else "ยังไม่จ่าย", "size": "xs", "color": color, "align": "end", "flex": 2}
                     ]
                 })
 
@@ -83,118 +71,77 @@ def check_bills():
                 },
                 "footer": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "button", "style": "primary", "color": "#1DB446", "action": {
-                            "type": "uri", "label": "✅ แจ้งจ่ายเงิน / ดูทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
-                        }}
+                        {"type": "button", "style": "primary", "color": "#1DB446", "action": {"type": "uri", "label": "✅ แจ้งจ่ายเงิน / ดูทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
                     ]
                 }
             }
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"มะมงอัปเดตบิล {bill_name}", contents=flex))
-        except Exception as e:
-            print(f"Error in check_bills: {e}")
-            
+            line_bot_api.push_message(target, FlexSendMessage(alt_text=f"มะมงอัปเดตบิล {bill_name}", contents=flex))
+        except Exception as e: print(f"Error: {e}")
     return "Check Complete", 200
 
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
-    try: 
-        handler.handle(body, signature)
-    except InvalidSignatureError: 
-        abort(400)
+    try: handler.handle(body, signature)
+    except InvalidSignatureError: abort(400)
     return 'OK'
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
-    data_str = event.postback.data
-    params = dict(x.split('=') for x in data_str.split('&'))
+    params = dict(x.split('=') for x in event.postback.data.split('&'))
     if params.get('action') == 'pay':
-        bill_id = params['bill_id']
-        bill_name = params.get('name', 'รายการออม')
-        supabase.table("bills").update({"status": "paid"}).eq("id", bill_id).execute()
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 มะมงบันทึกว่าคุณจ่าย '{bill_name}' เรียบร้อยแล้วครับ! 🐾"))
+        supabase.table("bills").update({"status": "paid"}).eq("id", params['bill_id']).execute()
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 มะมงบันทึกว่าจ่ายเรียบร้อยแล้วครับ! 🐾"))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    text = event.message.text.strip()
-    user_id = event.source.user_id
-    
-    source = event.source
-    if hasattr(source, 'group_id'):
-        group_id = source.group_id
-    elif hasattr(source, 'room_id'):
-        group_id = source.room_id
-    else:
-        group_id = 'personal'
+    text, user_id = event.message.text.strip(), event.source.user_id
+    group_id = getattr(event.source, 'group_id', getattr(event.source, 'room_id', 'personal'))
 
-    # แก้ไข Keyword จาก เมี๊ยว เป็น มะมง 🐶
     if text == "มะมง":
-        reply_text = "สวัสดีครับ มะมงมาแล้วครับผม 🐶 จะให้มะหมาตัวนี้ช่วยเรื่องอะไรดีครับเฮีย?"
         flex_menu = {
             "type": "bubble",
-            "hero": {"type": "image", "url": "https://img5.pic.in.th/file/secure-sv1/kumamong_header.png", "size": "full", "aspectRatio": "20:13", "aspectMode": "cover"},
-            "body": {"type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": "🐾 มะมงยินดีบริการครับผม!", "weight": "bold", "size": "lg", "align": "center"},
-                {"type": "text", "text": reply_text, "size": "sm", "wrap": True, "margin": "sm", "color": "#666666"},
-                {"type": "button", "style": "primary", "color": "#1DB446", "margin": "md", "action": {"type": "uri", "label": "💰 สร้างรายการออมใหม่", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
-                {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "uri", "label": "📊 ดูสถานะคนจ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
-            ]}
+            "body": {
+                "type": "box", "layout": "vertical", "contents": [
+                    {"type": "text", "text": "🐾 มะมงยินดีบริการครับผม!", "weight": "bold", "size": "lg", "align": "center"},
+                    {"type": "text", "text": "สวัสดีครับ มะมงมาแล้วครับผม 🐶 จะให้ช่วยออมเงินเรื่องอะไรดีครับเฮีย?", "size": "sm", "wrap": True, "margin": "sm", "color": "#666666"},
+                    {"type": "button", "style": "primary", "color": "#1DB446", "margin": "md", "action": {"type": "uri", "label": "💰 สร้างรายการออมใหม่", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
+                    {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "uri", "label": "📊 ดูสถานะคนจ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
+                ]
+            }
         }
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="มะมงมาแล้วครับ!", contents=flex_menu))
-        return
 
     elif "[คำสั่งออมเงิน]" in text:
         try:
             lines = text.split('\n')
             goal = lines[1].split(': ')[1]
-            total_project_amount = float(lines[2].split(': ')[1])
-            total_installments = int(lines[3].split(': ')[1])
+            total_amt = float(lines[2].split(': ')[1])
+            installments = int(lines[3].split(': ')[1])
             unit = lines[4].split(': ')[1]
-            start_str = lines[5].split(': ')[1] # รูปแบบ YYYY-MM-DD
-            time_str = lines[6].split(': ')[1]  # รูปแบบ HH:MM
-            
+            start_dt = datetime.strptime(f"{lines[5].split(': ')[1]} {lines[6].split(': ')[1]}", "%Y-%m-%d %H:%M")
             t_ids = [i.strip() for i in lines[7].split(': ')[1].split(',')]
             t_names = [n.strip() for n in lines[8].split(': ')[1].split(',')]
 
-            num_people = len(t_ids)
-            amount_per_person_total = total_project_amount / num_people
-            amount_per_person_per_period = round(amount_per_person_total / total_installments, 2)
+            per_period = round((total_amt / len(t_ids)) / installments, 2)
+
+            for i in range(installments):
+                if unit == "10_minutes": due = start_dt + timedelta(minutes=i * 10)
+                elif unit == "daily": due = start_dt + timedelta(days=i)
+                elif unit == "weekly": due = start_dt + timedelta(weeks=i)
+                elif unit == "monthly": due = start_dt + relativedelta(months=i)
+                else: due = start_dt + timedelta(days=i)
+
+                for tid, tname in zip(t_ids, t_names):
+                    supabase.table("bills").insert({
+                        "bill_name": goal, "total_amount": total_amt, "per_person": per_period,
+                        "status": "pending", "created_by": user_id, "next_due": due.strftime('%Y-%m-%d %H:%M:%S'),
+                        "target_user_id": tid, "member_name": tname, "group_id": group_id, "freq_unit": unit
+                    }).execute()
             
-            # --- ปรับ Logic การสร้างงวดแบบ 10 นาที ---
-            base_time = datetime.strptime(f"{start_str} {time_str}", "%Y-%m-%d %H:%M")
-
-            for i in range(total_installments):
-                # บวกเพิ่มงวดละ 10 นาที
-                due_time = base_time + timedelta(minutes=i * 10)
-                due_str = due_time.strftime('%Y-%m-%d %H:%M:%S')
-
-                for target_id, target_name in zip(t_ids, t_names):
-                    data = {
-                        "bill_name": goal, 
-                        "total_amount": total_project_amount,
-                        "per_person": amount_per_person_per_period,
-                        "status": "pending", 
-                        "created_by": user_id, 
-                        "freq_unit": "10_minutes", # บันทึกหน่วยใหม่
-                        "next_due": due_str, 
-                        "remind_time": time_str, 
-                        "target_user_id": target_id, 
-                        "member_name": target_name,
-                        "group_id": group_id
-                    }
-                    supabase.table("bills").insert(data).execute()
-            
-            confirm_msg = (
-                f"✅ มะมงบันทึกรายการ '{goal}' เรียบร้อย!\n"
-                f"⏱️ ตั้งงวดพิเศษ: ทุกๆ 10 นาที\n"
-                f"💰 ยอดรวม: {total_project_amount:,.2f} บาท\n"
-                f"📅 ทั้งหมด {total_installments} งวด จัดไปครับเฮีย!"
-            )
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=confirm_msg))
-
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ มะมงบันทึกรายการ '{goal}' ({unit}) เรียบร้อย {installments} งวดครับเฮีย!"))
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"โฮ่ง! มะมงคำนวณพลาด: {str(e)}"))
 
-if __name__ == "__main__": 
-    app.run(port=5000)
+if __name__ == "__main__": app.run(port=5000)
