@@ -55,14 +55,18 @@ def create_saving_api():
 
         # 1. บันทึกลง Supabase ทีละงวด (ส่วนนี้ต้องสำเร็จ)
         for i in range(total_installments):
-            if unit == "1d": due_time = base_time + timedelta(days=i)
-            elif unit == "7d": due_time = base_time + timedelta(weeks=i)
-            elif unit == "14d": due_time = base_time + timedelta(weeks=i*2)
-            elif unit == "1m": due_time = base_time + relativedelta(months=i)
-            else: due_time = base_time + timedelta(days=i)
+            if unit == "1d": 
+                due_time = base_time + timedelta(days=i)
+            elif unit == "7d": 
+                due_time = base_time + timedelta(days=i*7)  # งวดละ 7 วัน
+            elif unit == "14d": 
+                due_time = base_time + timedelta(days=i*14) # งวดละ 14 วัน (2 อาทิตย์เป๊ะ)
+            elif unit == "1m": 
+                due_time = base_time + relativedelta(months=i)
+            else: 
+                due_time = base_time + timedelta(days=i)
 
             due_str = due_time.strftime('%Y-%m-%d %H:%M:%S')
-
             for tid, tname in zip(t_ids, t_names):
                 supabase.table("bills").insert({
                     "bill_name": goal, 
