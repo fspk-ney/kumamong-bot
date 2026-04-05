@@ -171,7 +171,7 @@ def handle_message(event):
                     {"type": "text", "text": "มะมงยินดีบริการ โฮ่ง โฮ่ง!🐾", "weight": "bold", "size": "lg", "align": "center"},
                     {"type": "text", "text": reply_text, "size": "sm", "wrap": True, "margin": "sm", "color": "#666666"},
                     {"type": "button", "style": "primary", "color": "#ADC993", "margin": "md", "action": {"type": "uri", "label": "🪙 สร้างรายการออม", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
-                    {"type": "button", "style": "secondary", "color": "#F5EFE4", "margin": "md", "action": {"type": "uri", "label": "📄 ดูสถานะคนจ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
+                    {"type": "button", "style": "secondary", "color": "#F5EFE4", "margin": "md", "action": {"type": "uri", "label": "📄 เช็ครายการออม", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
                 ]
             }
         }
