@@ -55,10 +55,11 @@
                 <div class="col-6 mb-3">
                     <label class="form-label">🔄 ความถี่</label>
                     <select id="unit" class="form-select">
+                        <option value="5_minutes">ทุกๆ 5 นาที (สายเร่ง)</option>
                         <option value="10_minutes">ทุกๆ 10 นาที (ทดสอบ)</option>
-                        <option value="daily">ทุกวัน</option>
-                        <option value="weekly">ทุกสัปดาห์</option>
-                        <option value="monthly">ทุกเดือน</option>
+                        <option value="1d">ทุกวัน</option>
+                        <option value="7d">ทุกสัปดาห์</option>
+                        <option value="1m">ทุกเดือน</option>
                     </select>
                 </div>
             </div>
@@ -135,7 +136,7 @@
             btn.disabled = true;
             btn.innerText = "มะมงกำลังบันทึก...";
 
-            // ส่งค่า unit (ความถี่) ไปให้ Python ซึ่งรองรับ 10_minutes แล้ว
+            // ส่งข้อมูลด้วยโครงสร้างที่ Python รองรับ
             const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}`;
             
             liff.sendMessages([{ type: 'text', text: text }])
