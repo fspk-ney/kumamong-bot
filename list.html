@@ -218,7 +218,7 @@
             const members = proj.installmentList[instIdx];
             const modalBody = document.getElementById('modal-body');
             document.getElementById('modal-title').innerText = `งวดที่ ${instIdx + 1} (${proj.name})`;
-            let html = `<button class="btn btn-sm btn-light mb-3" onclick="showInstallmentList(${projIdx})" style="color: #5D4037; background-color: #eee;">⬅ ย้อนกลับ</button>`;
+            let html = `<button class="btn btn-sm btn-light mb-3" onclick="showInstallmentList(${projIdx})" style="color: #5D4037; background-color: #eee;">ย้อนกลับ</button>`;
             members.forEach(m => {
                 const isPaid = m.status === 'paid';
                 html += `
