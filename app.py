@@ -1,7 +1,7 @@
 import os
 import pytz
 from flask import Flask, request, abort, send_from_directory
-from flask_cors import CORS  # <--- นำเข้า CORS
+from flask_cors import CORS
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, PostbackEvent
@@ -10,13 +10,14 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
 app = Flask(__name__)
-CORS(app)  # <--- เปิดใช้งาน CORS ทันทีหลังจากสร้าง app
+CORS(app)
 
 # --- ข้อมูล Config ของเฮีย ---
 LINE_ACCESS_TOKEN = "UXPznDfBmyuDMV/OX32Y6htg/EGdPjNEVoLvngkysgodSaLgUstA6ewbNcg7A0vJw5P4EUXHgRMhkxRBvpUYgB6Fp/ZgMpyRLtcL/4joySV5u5JSvOpQmq2qrHN+I1wZ/I7pw5zr9IolfsRyWoz+sQdB04t89/1O/w1cDnyilFU="
 LINE_SECRET = "a06d44bf8e6d6079c04d3ba052078e25"
 SUPABASE_URL = "https://jvuhjuvvarpjcwpgwkny.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2dWhqdXZ2YXJwamN3cGd3a255Iiwicm9sZSI6Imp2dWhqdXZ2YXJwamN3cGd3a255Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTMwNTQzMiwiZXhwIjoyMDkwODgxNDMyfQ.AhRvojeTCD9HmC5-jUXDzT_6wojUoe7rJ9kQoXpkslk"
+# ใช้ Key ที่เฮียส่งมาล่าสุด (ตรวจสอบให้ชัวร์ว่าเป็น Service Role Key ในหน้า Dashboard นะครับ)
+SUPABASE_KEY = "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe" 
 MY_LIFF_ID = "2009693749-SfmWsP0l"
 
 line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
@@ -31,7 +32,7 @@ def serve_index():
 def serve_list():
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 [ใหม่] รับข้อมูลจากหน้าเว็บโดยตรง ---
+# --- 🚀 รับข้อมูลจากหน้าเว็บโดยตรง ---
 @app.route("/create_saving_api", methods=['POST'])
 def create_saving_api():
     data = request.get_json()
@@ -54,7 +55,6 @@ def create_saving_api():
         base_time = datetime.strptime(f"{start_str} {time_str}", "%Y-%m-%d %H:%M")
 
         # บันทึกลง Supabase ทีละงวด
-# บันทึกลง Supabase ทีละงวด
         for i in range(total_installments):
             if unit == "1d": due_time = base_time + timedelta(days=i)
             elif unit == "7d": due_time = base_time + timedelta(weeks=i)
@@ -71,14 +71,13 @@ def create_saving_api():
                     "remind_time": time_str, "target_user_id": tid, "member_name": tname, "group_id": group_id
                 }).execute()
 
-        # ✅ ย้ายออกมาข้างนอก Loop (ไม่งั้นบอทจะส่งข้อความรัวตามจำนวนงวด)
         target = group_id if group_id != 'personal' else user_id
         confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวทวงให้ตามเวลาครับ"
         line_bot_api.push_message(target, TextSendMessage(text=confirm_text))
 
         return "OK", 200
     except Exception as e:
-        print(f"Error in API: {e}") # ช่วย debug ดูที่ log ของ Render
+        print(f"Error in API: {e}")
         return str(e), 500
 
 # --- 🚀 ระบบทวงเงิน ---
@@ -169,26 +168,28 @@ def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
     
-    # 🔍 1. ดึงโปรไฟล์คนพิมพ์ (เอาชื่อมาเก็บ)
+    # 🔍 1. ดึงโปรไฟล์คนพิมพ์
     try:
         profile = line_bot_api.get_profile(user_id)
         display_name = profile.display_name
     except:
         display_name = "เพื่อนนิรนาม"
 
-    # 🔍 2. เช็กว่ามาจากกลุ่มไหน
+    # 🔍 2. เช็ก Group ID
     source = event.source
     group_id = 'personal'
     if hasattr(source, 'group_id'): group_id = source.group_id
     elif hasattr(source, 'room_id'): group_id = source.room_id
 
-    # 🚀 3. [สำคัญ!] บันทึกหรืออัปเดตรายชื่อลงตาราง group_members
-    # เพื่อให้หน้าสร้างรายการออมมองเห็นเพื่อนคนนี้
-    supabase.table("group_members").upsert({
-        "group_id": group_id,
-        "user_id": user_id,
-        "display_name": display_name
-    }).execute()
+    # 🚀 3. บันทึกรายชื่อคนพิมพ์ลงตาราง group_members (ใส่ try เพื่อกันบอตตายถ้ากุญแจ DB ผิด)
+    try:
+        supabase.table("group_members").upsert({
+            "group_id": group_id,
+            "user_id": user_id,
+            "display_name": display_name
+        }).execute()
+    except Exception as e:
+        print(f"Database Upsert Error: {e}")
 
     if text == "มะมง":
         reply_text = "สวัสดีครับ มะมงมาแล้วครับผม 🐶 จะให้มะหมาตัวนี้ช่วยเรื่องอะไรดีครับ"
