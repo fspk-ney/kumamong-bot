@@ -46,6 +46,7 @@ def create_saving_api():
         t_names = data['targetNames'].split(',')
         group_id = data.get('groupId', 'personal')
         user_id = data.get('userId')
+        reply_token = data.get('replyToken') # 🐾 [เพิ่ม] รับ Token จากหน้าเว็บ
 
         num_people = len(t_ids)
         amount_per_person_total = total_project_amount / num_people
@@ -70,14 +71,14 @@ def create_saving_api():
                     "remind_time": time_str, "target_user_id": tid, "member_name": tname, "group_id": group_id
                 }).execute()
 
-        # มะมงประกาศสรุปรายการในกลุ่มเอง (Push Message)
-        #target = group_id if group_id != 'personal' else user_id
-        #confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวทวงให้ในกลุ่มนี้ตามเวลาครับ โฮ่ง! 🐾"
-        #line_bot_api.push_message(target, TextSendMessage(text=confirm_text))
+        # 🐾 [แก้ไข] เปลี่ยนจาก Push เป็น Reply เพื่อตอบกลับฟรีทันที
+        if reply_token:
+            confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวรอเช็กยอดในหน้าสรุปนะครับ โฮ่ง! 🐾"
+            line_bot_api.reply_message(reply_token, TextSendMessage(text=confirm_text))
 
         return "OK", 200
     except Exception as e:
-        print(f"Error in API: {e}") # ช่วย debug ดูที่ log ของ Render
+        print(f"Error in API: {e}") 
         return str(e), 500
 
 # --- 🚀 ระบบทวงเงิน ---
@@ -140,6 +141,7 @@ def check_bills():
                     ]
                 }
             }
+            # ตรงนี้ยังเป็น push_message (จะทำงานได้เมื่อโควตารีเซ็ต หรือซื้อเพิ่ม)
             line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"งวดที่ {current_inst} บิล {bill_name}", contents=flex))
         except Exception as e: print(f"Error in check_bills: {e}")
             

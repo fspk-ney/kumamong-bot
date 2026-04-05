@@ -149,6 +149,7 @@
                 targetNames: targetNames,
                 groupId: gid,
                 userId: liff.getContext()?.userId || ''
+                replyToken: liff.getContext()?.replyToken,
             };
 
             fetch("https://kumamong-bot.onrender.com/create_saving_api", { 
