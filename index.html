@@ -27,7 +27,7 @@
 
     <div class="container">
         <div class="card p-4">
-            <h4 class="text-center fw-bold mb-4">🪙 สร้างรายการออมใหม่</h4>
+            <h4 class="text-center fw-bold mb-4">🪙สร้างรายการออมใหม่</h4>
             
             <div class="mb-3">
                 <label class="form-label">เลือกเพื่อนที่จะออมด้วย (เลือกได้หลายคน)</label>
@@ -92,10 +92,11 @@
                 const gid = params.get('groupId') || 'personal';
 
                 const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
+
                 const listDiv = document.getElementById('friend-list');
                 
                 if (error || !members || members.length === 0) {
-                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ "มะมง" ในกลุ่มก่อน)</div>';
+                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ มะมง ในกลุ่มก่อน)</div>';
                 } else {
                     listDiv.innerHTML = '';
                     const seenIds = new Set();
@@ -131,7 +132,7 @@
             const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
             const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
             
-            // ดึง groupId เพื่อส่งไปในข้อความ
+            // ดึง groupId จาก URL
             const params = new URLSearchParams(window.location.search);
             const gid = params.get('groupId') || 'personal';
 
@@ -139,16 +140,37 @@
             btn.disabled = true;
             btn.innerText = "มะมงกำลังบันทึก...";
 
-            // เพิ่มบรรทัด GroupID: เข้าไปในชุดข้อความเพื่อให้ Backend แกะไปลง DB ได้ถูกกลุ่ม
-            const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}\nGroupID: ${gid}`;
-            
-            liff.sendMessages([{ type: 'text', text: text }])
-                .then(() => { liff.closeWindow(); })
-                .catch((err) => {
-                    btn.disabled = false;
-                    btn.innerText = "บันทึกรายการออม โฮ่ง!";
-                    alert('ส่งไม่สำเร็จ: ' + err.message);
-                });
+            // 🐾 แก้ไข: เปลี่ยนมาใช้ fetch ยิงเข้า API หลังบ้านแทนการส่ง Message เพื่อความสะอาด
+            const payload = {
+                goal: goal,
+                total: total,
+                count: count,
+                unit: unit,
+                start: start,
+                time: time,
+                targetIds: targetIds,
+                targetNames: targetNames,
+                groupId: gid,
+                userId: liff.getContext()?.userId || ''
+            };
+
+            fetch("/create_saving_api", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (response.ok) {
+                    liff.closeWindow(); // บันทึกเสร็จปิดหน้าจอทันที ไม่พ่นแชทเขียว
+                } else {
+                    throw new Error('บันทึกไม่สำเร็จ');
+                }
+            })
+            .catch((err) => {
+                btn.disabled = false;
+                btn.innerText = "บันทึกรายการออม โฮ่ง!";
+                alert('เกิดข้อผิดพลาด: ' + err.message);
+            });
         }
         main();
     </script>
