@@ -29,7 +29,7 @@ def serve_index():
 def serve_list(): 
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงินแบบใหม่ (รวบยอดเป็นบิลเดียวต่อกลุ่ม) ---
+# --- 🚀 ระบบทวงเงิน ---
 @app.route('/check_bills')
 def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
@@ -72,13 +72,13 @@ def check_bills():
                 "type": "bubble",
                 "body": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": "💰 รายละเอียดบิลกลุ่ม", "weight": "bold", "color": "#1DB446", "size": "sm"},
+                        {"type": "text", "text": "💰 รายละเอียดบิลกลุ่มโดยมะมง 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
                         {"type": "text", "text": bill_name, "weight": "bold", "size": "xl", "margin": "md"},
                         {"type": "text", "text": f"ยอดต่อคน: {members[0]['per_person']:,.2f} บาท", "size": "xs", "color": "#888888"},
                         {"type": "separator", "margin": "lg"},
                         {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "xs", "contents": member_list_ui},
                         {"type": "separator", "margin": "lg"},
-                        {"type": "text", "text": "* อัปเดตสถานะล่าสุดเมี๊ยว 🐾", "size": "xs", "color": "#aaaaaa", "margin": "md"}
+                        {"type": "text", "text": "* มะมงอัปเดตให้ล่าสุดครับ 🐾", "size": "xs", "color": "#aaaaaa", "margin": "md"}
                     ]
                 },
                 "footer": {
@@ -89,9 +89,7 @@ def check_bills():
                     ]
                 }
             }
-            
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"อัปเดตบิล {bill_name}", contents=flex))
-
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"มะมงอัปเดตบิล {bill_name}", contents=flex))
         except Exception as e:
             print(f"Error in check_bills: {e}")
             
@@ -115,11 +113,11 @@ def handle_postback(event):
         bill_id = params['bill_id']
         bill_name = params.get('name', 'รายการออม')
         supabase.table("bills").update({"status": "paid"}).eq("id", bill_id).execute()
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 บันทึกว่าคุณจ่าย '{bill_name}' เรียบร้อยแล้วเมี๊ยว! 🐾"))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 มะมงบันทึกว่าคุณจ่าย '{bill_name}' เรียบร้อยแล้วครับ! 🐾"))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    text = event.message.text
+    text = event.message.text.strip()
     user_id = event.source.user_id
     
     source = event.source
@@ -130,24 +128,21 @@ def handle_message(event):
     else:
         group_id = 'personal'
 
-    try:
-        profile = line_bot_api.get_profile(user_id)
-        display_name = profile.display_name
-        supabase.table("group_members").upsert({"group_id": group_id, "user_id": user_id, "display_name": display_name}).execute()
-    except Exception as e:
-        print(f"Profile error: {e}")
-
-    if text == "เมี๊ยว":
+    # แก้ไข Keyword จาก เมี๊ยว เป็น มะมง 🐶
+    if text == "มะมง":
+        reply_text = "สวัสดีครับ มะมงมาแล้วครับผม 🐶 จะให้มะหมาตัวนี้ช่วยเรื่องอะไรดีครับเฮีย?"
         flex_menu = {
             "type": "bubble",
             "hero": {"type": "image", "url": "https://img5.pic.in.th/file/secure-sv1/kumamong_header.png", "size": "full", "aspectRatio": "20:13", "aspectMode": "cover"},
             "body": {"type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": "🐾 คุ้มมงยินดีบริการเมี๊ยว!", "weight": "bold", "size": "lg", "align": "center"},
+                {"type": "text", "text": "🐾 มะมงยินดีบริการครับผม!", "weight": "bold", "size": "lg", "align": "center"},
+                {"type": "text", "text": reply_text, "size": "sm", "wrap": True, "margin": "sm", "color": "#666666"},
                 {"type": "button", "style": "primary", "color": "#1DB446", "margin": "md", "action": {"type": "uri", "label": "💰 สร้างรายการออมใหม่", "uri": f"https://liff.line.me/{MY_LIFF_ID}?groupId={group_id}"}},
                 {"type": "button", "style": "secondary", "margin": "md", "action": {"type": "uri", "label": "📊 ดูสถานะคนจ่าย", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"}}
             ]}
         }
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="คุ้มมงมาแล้ว!", contents=flex_menu))
+        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="มะมงมาแล้วครับ!", contents=flex_menu))
+        return
 
     elif "[คำสั่งออมเงิน]" in text:
         try:
@@ -156,8 +151,8 @@ def handle_message(event):
             total_project_amount = float(lines[2].split(': ')[1])
             total_installments = int(lines[3].split(': ')[1])
             unit = lines[4].split(': ')[1]
-            start = lines[5].split(': ')[1]
-            time = lines[6].split(': ')[1]
+            start_str = lines[5].split(': ')[1] # รูปแบบ YYYY-MM-DD
+            time_str = lines[6].split(': ')[1]  # รูปแบบ HH:MM
             
             t_ids = [i.strip() for i in lines[7].split(': ')[1].split(',')]
             t_names = [n.strip() for n in lines[8].split(': ')[1].split(',')]
@@ -166,56 +161,40 @@ def handle_message(event):
             amount_per_person_total = total_project_amount / num_people
             amount_per_person_per_period = round(amount_per_person_total / total_installments, 2)
             
-            unpaid_found = False
-            for target_id, target_name in zip(t_ids, t_names):
-                old_bills = supabase.table("bills") \
-                    .select("per_person") \
-                    .eq("target_user_id", target_id) \
-                    .eq("bill_name", goal) \
-                    .eq("status", "pending") \
-                    .execute()
-                
-                unpaid_amount = sum(item['per_person'] for item in old_bills.data)
-                final_pay_this_period = amount_per_person_per_period + unpaid_amount
+            # --- ปรับ Logic การสร้างงวดแบบ 10 นาที ---
+            base_time = datetime.strptime(f"{start_str} {time_str}", "%Y-%m-%d %H:%M")
 
-                if unpaid_amount > 0:
-                    unpaid_found = True
-                    supabase.table("bills") \
-                        .update({"status": "carried_over"}) \
-                        .eq("target_user_id", target_id) \
-                        .eq("bill_name", goal) \
-                        .eq("status", "pending") \
-                        .execute()
+            for i in range(total_installments):
+                # บวกเพิ่มงวดละ 10 นาที
+                due_time = base_time + timedelta(minutes=i * 10)
+                due_str = due_time.strftime('%Y-%m-%d %H:%M:%S')
 
-                data = {
-                    "bill_name": goal, 
-                    "total_amount": total_project_amount,
-                    "per_person": final_pay_this_period,
-                    "status": "pending", 
-                    "created_by": user_id, 
-                    "freq_unit": unit,
-                    "next_due": start, 
-                    "remind_time": time, 
-                    "target_user_id": target_id, 
-                    "member_name": target_name,
-                    "group_id": group_id
-                }
-                supabase.table("bills").insert(data).execute()
+                for target_id, target_name in zip(t_ids, t_names):
+                    data = {
+                        "bill_name": goal, 
+                        "total_amount": total_project_amount,
+                        "per_person": amount_per_person_per_period,
+                        "status": "pending", 
+                        "created_by": user_id, 
+                        "freq_unit": "10_minutes", # บันทึกหน่วยใหม่
+                        "next_due": due_str, 
+                        "remind_time": time_str, 
+                        "target_user_id": target_id, 
+                        "member_name": target_name,
+                        "group_id": group_id
+                    }
+                    supabase.table("bills").insert(data).execute()
             
             confirm_msg = (
-                f"✅ บันทึกรายการ '{goal}' เรียบร้อย!\n"
-                f"💰 ยอดรวมทั้งหมด: {total_project_amount:,.2f} บาท\n"
-                f"👥 หาร {num_people} คน ตกคนละ: {amount_per_person_total:,.2f} บาท\n"
-                f"📅 แบ่งออม {total_installments} งวด\n"
-                f"💵 ยอดที่ต้องจ่ายงวดนี้: {amount_per_person_per_period:,.2f} บาท/คน"
+                f"✅ มะมงบันทึกรายการ '{goal}' เรียบร้อย!\n"
+                f"⏱️ ตั้งงวดพิเศษ: ทุกๆ 10 นาที\n"
+                f"💰 ยอดรวม: {total_project_amount:,.2f} บาท\n"
+                f"📅 ทั้งหมด {total_installments} งวด จัดไปครับเฮีย!"
             )
-            if unpaid_found:
-                confirm_msg += f"\n⚠️ (มีทบยอดค้างชำระเก่าให้บางสมาชิกแล้วเมี๊ยว)"
-            
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=confirm_msg))
 
         except Exception as e:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาดในการคำนวณ: {str(e)}"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"โฮ่ง! มะมงคำนวณพลาด: {str(e)}"))
 
 if __name__ == "__main__": 
     app.run(port=5000)
