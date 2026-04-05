@@ -13,7 +13,7 @@
         .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .btn-success { background-color: #1DB446; border: none; border-radius: 12px; padding: 12px; font-weight: 600; transition: 0.3s; }
         .form-label { font-weight: 600; font-size: 0.9rem; color: #444; }
-        /* สไตล์ใหม่สำหรับรายการเพื่อน */
+        /* สไตล์สำหรับรายการเพื่อนแบบ Checkbox */
         .friend-list-container { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: white; }
         .friend-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; }
         .friend-item:last-child { border-bottom: none; }
@@ -39,8 +39,8 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">🎯 ชื่อรายการออม</label>
-                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น">
+                <label class="form-label">🎯 ชื่อรายการออม (ทริป/เป้าหมาย)</label>
+                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ค่าเทอม">
             </div>
 
             <div class="mb-3">
@@ -58,7 +58,7 @@
                     <select id="unit" class="form-select">
                         <option value="7d">ทุกอาทิตย์</option>
                         <option value="1m">ทุกเดือน</option>
-                        <option value="1d">ทุกวัน</option>
+                        <option value="1d">ทุกวัน (สายโหด)</option>
                     </select>
                 </div>
             </div>
@@ -69,7 +69,7 @@
                     <input type="date" id="start" class="form-control">
                 </div>
                 <div class="col-6 mb-4">
-                    <label class="form-label">⏰ เวลาทวง</label>
+                    <label class="form-label">⏰ เวลาทวงเงิน</label>
                     <input type="time" id="time" class="form-control" value="08:00">
                 </div>
             </div>
@@ -90,12 +90,13 @@
                 const params = new URLSearchParams(window.location.search);
                 const gid = params.get('groupId') || 'personal';
 
+                // ดึงรายชื่อสมาชิกจาก Supabase
                 const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
 
                 const listDiv = document.getElementById('friend-list');
                 
                 if (error || !members || members.length === 0) {
-                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อนในกลุ่มนี้</div>';
+                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ เมี๊ยว ในกลุ่มก่อน)</div>';
                 } else {
                     listDiv.innerHTML = '';
                     const seenIds = new Set();
@@ -116,9 +117,9 @@
         }
 
         function confirmSave() {
-            // ดึงเฉพาะคนที่ถูกติ๊กถูก
+            // ดึงเฉพาะคนที่ถูกติ๊กเลือก
             const checkedFriends = document.querySelectorAll('input[name="friend"]:checked');
-            if(checkedFriends.length === 0) return alert('เฮีย! เลือกเพื่อนอย่างน้อย 1 คนก่อนเมี๊ยว!');
+            if(checkedFriends.length === 0) return alert('เฮีย! ต้องเลือกเพื่อนอย่างน้อย 1 คนนะเมี๊ยว!');
 
             const goal = document.getElementById('goal').value;
             const total = document.getElementById('total').value;
@@ -129,7 +130,7 @@
 
             if(!goal || !total) return alert('กรอกข้อมูลให้ครบก่อนนะเฮีย!');
 
-            // รวม ID และ ชื่อ เป็น Comma Separated String ✨
+            // รวบรวม ID และ ชื่อ เป็น String คั่นด้วยคอมมา (Comma-separated)
             const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
             const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
 
@@ -137,7 +138,7 @@
             btn.disabled = true;
             btn.innerText = "กำลังบันทึก...";
 
-            // ส่งข้อความแบบที่ Python ตัวใหม่รอรับ
+            // ส่งข้อความหาบอทตาม Format ที่ Python รอรับ
             const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}`;
             
             liff.sendMessages([{ type: 'text', text: text }])

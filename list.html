@@ -13,7 +13,8 @@
         .bill-card { border-radius: 15px; border: none; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: 0.3s; }
         .btn-edit { background-color: #ffc107; border: none; border-radius: 8px; color: #000; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
         .btn-delete { background-color: #ff4d4d; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
-        .status-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 20px; }
+        .btn-pay { background-color: #1DB446; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
+        .status-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
         .status-paid { background: #e3f9e5; color: #1DB446; }
         .status-pending { background: #fff4e5; color: #f39c12; }
     </style>
@@ -61,7 +62,13 @@
 
         async function loadBills() {
             const listDiv = document.getElementById('bill-list');
-            const { data: bills, error } = await client.from('bills').select('*').order('next_due', { ascending: true });
+            
+            // ปรับการ Query ให้เรียงลำดับเอา Pending (P) ขึ้นก่อน Paid (P) 
+            // และเรียงตามวันที่จ่ายล่าสุด
+            const { data: bills, error } = await client.from('bills')
+                .select('*')
+                .order('status', { ascending: false }) 
+                .order('next_due', { ascending: true });
             
             if (error) {
                 listDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
@@ -75,32 +82,42 @@
 
             listDiv.innerHTML = '';
             bills.forEach(bill => {
-                const statusClass = bill.status === 'paid' ? 'status-paid' : 'status-pending';
-                const statusText = bill.status === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย';
+                const isPaid = bill.status === 'paid';
+                const statusClass = isPaid ? 'status-paid' : 'status-pending';
+                const statusText = isPaid ? '✅ จ่ายแล้ว' : '⏳ รอจ่าย';
                 
                 listDiv.innerHTML += `
-                    <div class="card bill-card p-3">
+                    <div class="card bill-card p-3" style="${isPaid ? 'opacity: 0.8;' : ''}">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
                                 <h6 class="fw-bold mb-0">${bill.bill_name}</h6>
                                 <span class="status-badge ${statusClass}">${statusText}</span>
                             </div>
-                            <div class="d-flex gap-2">
+                            <div class="d-flex gap-1">
+                                ${!isPaid ? `<button class="btn-pay" onclick="quickPay('${bill.id}', '${bill.bill_name}')">จ่าย</button>` : ''}
                                 <button class="btn-edit" onclick="openEdit('${bill.id}', '${bill.bill_name}', '${bill.per_person}', '${bill.next_due}')">แก้ไข</button>
                                 <button class="btn-delete" onclick="deleteBill('${bill.id}', '${bill.bill_name}')">ลบ</button>
                             </div>
                         </div>
-                        <p class="text-muted small mb-2">👤 สมาชิก: ${bill.member_name}</p>
+                        <p class="text-muted small mb-2" style="font-size: 0.85rem;">👤 สมาชิก: <strong>${bill.member_name}</strong></p>
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-success fw-bold" style="font-size: 1.1rem;">฿${bill.per_person.toLocaleString()}</span>
-                            <span class="badge bg-light text-dark fw-normal" style="font-size: 0.75rem;">📅 งวดถัดไป: ${bill.next_due}</span>
+                            <span class="text-success fw-bold" style="font-size: 1.1rem;">฿${bill.per_person.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            <span class="badge bg-light text-dark fw-normal" style="font-size: 0.75rem;">📅 งวด: ${bill.next_due}</span>
                         </div>
                     </div>
                 `;
             });
         }
 
-        // --- ฟังก์ชันแก้ไข ---
+        // --- ฟังก์ชันจ่ายเงินด่วน ---
+        async function quickPay(id, name) {
+            if (confirm(`บันทึกว่า "${name}" จ่ายแล้วใช่ไหมเมี๊ยว?`)) {
+                const { error } = await client.from('bills').update({ status: 'paid' }).eq('id', id);
+                if (error) alert("บันทึกไม่สำเร็จ: " + error.message);
+                else location.reload();
+            }
+        }
+
         function openEdit(id, name, amount, date) {
             document.getElementById('edit-id').value = id;
             document.getElementById('edit-name').value = name;
@@ -126,15 +143,11 @@
             }
         }
 
-        // --- ฟังก์ชันลบ ---
         async function deleteBill(id, name) {
-            if (confirm(`เฮียแน่ใจนะว่าจะลบรายการ "${name}" ?\nลบแล้วกู้คืนไม่ได้นะเมี๊ยว!`)) {
+            if (confirm(`เฮียแน่ใจนะว่าจะลบรายการ "${name}" ?`)) {
                 const { error } = await client.from('bills').delete().eq('id', id);
                 if (error) alert("ลบไม่สำเร็จ: " + error.message);
-                else {
-                    alert("ลบรายการเรียบร้อยแล้วเมี๊ยว! 🗑️");
-                    location.reload();
-                }
+                else location.reload();
             }
         }
 
