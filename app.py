@@ -72,9 +72,9 @@ def create_saving_api():
                 }).execute()
 
         # มะมงประกาศสรุปรายการในกลุ่มเอง (Push Message)
-        target = group_id if group_id != 'personal' else user_id
-        confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวทวงให้ในกลุ่มนี้ตามเวลาครับ โฮ่ง! 🐾"
-        line_bot_api.push_message(target, TextSendMessage(text=confirm_text))
+        #target = group_id if group_id != 'personal' else user_id
+        #confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวทวงให้ในกลุ่มนี้ตามเวลาครับ โฮ่ง! 🐾"
+        #line_bot_api.push_message(target, TextSendMessage(text=confirm_text))
 
         return "OK", 200
     except Exception as e:
