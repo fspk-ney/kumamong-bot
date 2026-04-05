@@ -1,178 +1,153 @@
+นี่คือไฟล์จาก index แก้ส่วนที่สั่งเท่านั้นอย่าลบไรมั่วซั่วเดะระบบพัง
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>สร้างรายการออมกับมะมง 🐾</title>
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { background-color: #f4eee3; font-family: 'Chakra Petch', sans-serif; }
-        .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .btn-success { background-color: #adc993; border: none; border-radius: 12px; padding: 12px; font-weight: 600; transition: 0.3s; }
-        .form-label { font-weight: 600; font-size: 0.9rem; color: #77614f; }
-        .friend-list-container { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: white; }
-        .friend-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; }
-        .friend-item:last-child { border-bottom: none; }
-        .friend-item input { margin-right: 12px; transform: scale(1.2); }
-        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สร้างรายการออมกับมะมง 🐾</title>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #f4eee3; font-family: 'Chakra Petch', sans-serif; }
+        .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .btn-success { background-color: #adc993; border: none; border-radius: 12px; padding: 12px; font-weight: 600; transition: 0.3s; }
+        .form-label { font-weight: 600; font-size: 0.9rem; color: #77614f; }
+        .friend-list-container { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: white; }
+        .friend-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; }
+        .friend-item:last-child { border-bottom: none; }
+        .friend-item input { margin-right: 12px; transform: scale(1.2); }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    </style>
 </head>
 <body class="p-3">
-    <div id="loader" class="loading-overlay">
-        <div class="spinner-border text-success" role="status"></div>
-    </div>
+    <div id="loader" class="loading-overlay">
+        <div class="spinner-border text-success" role="status"></div>
+    </div>
 
-    <div class="container">
-        <div class="card p-4">
-            <h4 class="text-center fw-bold mb-4">🪙สร้างรายการออมใหม่</h4>
-            
-            <div class="mb-3">
-                <label class="form-label">เลือกเพื่อนที่จะออมด้วย (เลือกได้หลายคน)</label>
-                <div id="friend-list" class="friend-list-container">
-                    <div class="text-muted small p-2">กำลังโหลดรายชื่อเพื่อน...</div>
-                </div>
-                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "มะมง" ในกลุ่มก่อน</small>
-            </div>
+    <div class="container">
+        <div class="card p-4">
+            <h4 class="text-center fw-bold mb-4">🪙สร้างรายการออมใหม่</h4>
+            
+            <div class="mb-3">
+                <label class="form-label">เลือกเพื่อนที่จะออมด้วย (เลือกได้หลายคน)</label>
+                <div id="friend-list" class="friend-list-container">
+                    <div class="text-muted small p-2">กำลังโหลดรายชื่อเพื่อน...</div>
+                </div>
+                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "มะมง" ในกลุ่มก่อน</small>
+            </div>
 
-            <div class="mb-3">
-                <label class="form-label"> ชื่อรายการออม (ทริป/เป้าหมาย)</label>
-                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ค่าบ้าน">
-            </div>
+            <div class="mb-3">
+                <label class="form-label"> ชื่อรายการออม (ทริป/เป้าหมาย)</label>
+                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ค่าบ้าน">
+            </div>
 
-            <div class="mb-3">
-                <label class="form-label">ยอดรวมเป้าหมาย (บาท)</label>
-                <input type="number" id="total" class="form-control" placeholder="0.00" inputmode="decimal">
-            </div>
+            <div class="mb-3">
+                <label class="form-label">ยอดรวมเป้าหมาย (บาท)</label>
+                <input type="number" id="total" class="form-control" placeholder="0.00" inputmode="decimal">
+            </div>
 
-            <div class="row">
-                <div class="col-6 mb-3">
-                    <label class="form-label"> จำนวนงวด</label>
-                    <input type="number" id="count" class="form-control" value="10">
-                </div>
-                <div class="col-6 mb-3">
-                    <label class="form-label"> เก็บซ้ำทุก ๆ</label>
-                    <select id="unit" class="form-select">
-                        <option value="5_minutes">ทุก ๆ 5 นาที (สายเร่ง)</option>
-                        <option value="10_minutes">ทุก ๆ 10 นาที (ทดสอบ)</option>
-                        <option value="1d">ทุกวัน</option>
-                        <option value="7d">ทุกสัปดาห์</option>
-                        <option value="1m">ทุกเดือน</option>
-                    </select>
-                </div>
-            </div>
+            <div class="row">
+                <div class="col-6 mb-3">
+                    <label class="form-label"> จำนวนงวด</label>
+                    <input type="number" id="count" class="form-control" value="10">
+                </div>
+                <div class="col-6 mb-3">
+                    <label class="form-label"> เก็บซ้ำทุก ๆ</label>
+                    <select id="unit" class="form-select">
+                        <option value="5_minutes">ทุก ๆ 5 นาที (สายเร่ง)</option>
+                        <option value="10_minutes">ทุก ๆ 10 นาที (ทดสอบ)</option>
+                        <option value="1d">ทุกวัน</option>
+                        <option value="7d">ทุกสัปดาห์</option>
+                        <option value="1m">ทุกเดือน</option>
+                    </select>
+                </div>
+            </div>
 
-            <div class="row">
-                <div class="col-6 mb-3">
-                    <label class="form-label">เริ่มงวดแรก</label>
-                    <input type="date" id="start" class="form-control">
-                </div>
-                <div class="col-6 mb-4">
-                    <label class="form-label">เวลาตามเงิน</label>
-                    <input type="time" id="time" class="form-control" value="09:00">
-                </div>
-            </div>
+            <div class="row">
+                <div class="col-6 mb-3">
+                    <label class="form-label">เริ่มงวดแรก</label>
+                    <input type="date" id="start" class="form-control">
+                </div>
+                <div class="col-6 mb-4">
+                    <label class="form-label">เวลาตามเงิน</label>
+                    <input type="time" id="time" class="form-control" value="09:00">
+                </div>
+            </div>
 
-            <button id="saveBtn" class="btn btn-success w-100 shadow-sm" onclick="confirmSave()">บันทึกรายการออม โฮ่ง!</button>
-        </div>
-    </div>
+            <button id="saveBtn" class="btn btn-success w-100 shadow-sm" onclick="confirmSave()">บันทึกรายการออม โฮ่ง!</button>
+        </div>
+    </div>
 
-    <script>
-        const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
+    <script>
+        const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
 
-        async function main() {
-            try {
-                await liff.init({ liffId: "2009693749-SfmWsP0l" });
-                if (!liff.isLoggedIn()) { liff.login(); return; }
+        async function main() {
+            try {
+                await liff.init({ liffId: "2009693749-SfmWsP0l" });
+                if (!liff.isLoggedIn()) { liff.login(); return; }
 
-                document.getElementById('start').valueAsDate = new Date();
-                const params = new URLSearchParams(window.location.search);
-                const gid = params.get('groupId') || 'personal';
+                document.getElementById('start').valueAsDate = new Date();
+                const params = new URLSearchParams(window.location.search);
+                const gid = params.get('groupId') || 'personal';
 
-                const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
+                const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
 
-                const listDiv = document.getElementById('friend-list');
-                
-                if (error || !members || members.length === 0) {
-                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ มะมง ในกลุ่มก่อน)</div>';
-                } else {
-                    listDiv.innerHTML = '';
-                    const seenIds = new Set();
-                    members.forEach(m => {
-                        if (!seenIds.has(m.user_id)) {
-                            seenIds.add(m.user_id);
-                            listDiv.innerHTML += `
-                                <div class="friend-item">
-                                    <input type="checkbox" name="friend" value="${m.user_id}" data-name="${m.display_name}">
-                                    <span>${m.display_name}</span>
-                                </div>
-                            `;
-                        }
-                    });
-                }
-                document.getElementById('loader').style.display = 'none';
-            } catch (err) { alert("LIFF Error: " + err.message); }
-        }
+                const listDiv = document.getElementById('friend-list');
+                
+                if (error || !members || members.length === 0) {
+                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ มะมง ในกลุ่มก่อน)</div>';
+                } else {
+                    listDiv.innerHTML = '';
+                    const seenIds = new Set();
+                    members.forEach(m => {
+                        if (!seenIds.has(m.user_id)) {
+                            seenIds.add(m.user_id);
+                            listDiv.innerHTML += `
+                                <div class="friend-item">
+                                    <input type="checkbox" name="friend" value="${m.user_id}" data-name="${m.display_name}">
+                                    <span>${m.display_name}</span>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+                document.getElementById('loader').style.display = 'none';
+            } catch (err) { alert("LIFF Error: " + err.message); }
+        }
 
-        function confirmSave() {
-            const checkedFriends = document.querySelectorAll('input[name="friend"]:checked');
-            if(checkedFriends.length === 0) return alert('ต้องเลือกเพื่อนอย่างน้อย 1 คน');
+        function confirmSave() {
+            const checkedFriends = document.querySelectorAll('input[name="friend"]:checked');
+            if(checkedFriends.length === 0) return alert('ต้องเลือกเพื่อนอย่างน้อย 1 คน');
 
-            const goal = document.getElementById('goal').value;
-            const total = document.getElementById('total').value;
-            const count = document.getElementById('count').value;
-            const unit = document.getElementById('unit').value;
-            const start = document.getElementById('start').value;
-            const time = document.getElementById('time').value;
+            const goal = document.getElementById('goal').value;
+            const total = document.getElementById('total').value;
+            const count = document.getElementById('count').value;
+            const unit = document.getElementById('unit').value;
+            const start = document.getElementById('start').value;
+            const time = document.getElementById('time').value;
 
-            if(!goal || !total) return alert('กรอกข้อมูลให้ครบก่อนนะครับ');
+            if(!goal || !total) return alert('กรอกข้อมูลให้ครบก่อนนะครับ');
 
-            const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
-            const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
-            
-            // ดึง groupId จาก URL
-            const params = new URLSearchParams(window.location.search);
-            const gid = params.get('groupId') || 'personal';
+            const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
+            const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
 
-            const btn = document.getElementById('saveBtn');
-            btn.disabled = true;
-            btn.innerText = "มะมงกำลังบันทึก...";
+            const btn = document.getElementById('saveBtn');
+            btn.disabled = true;
+            btn.innerText = "มะมงกำลังบันทึก...";
 
-            // 🐾 แก้ไข: เปลี่ยนมาใช้ fetch ยิงเข้า API หลังบ้านแทนการส่ง Message เพื่อความสะอาด
-            const payload = {
-                goal: goal,
-                total: total,
-                count: count,
-                unit: unit,
-                start: start,
-                time: time,
-                targetIds: targetIds,
-                targetNames: targetNames,
-                groupId: gid,
-                userId: liff.getContext()?.userId || ''
-            };
-
-            fetch("/create_saving_api", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            .then(response => {
-                if (response.ok) {
-                    liff.closeWindow(); // บันทึกเสร็จปิดหน้าจอทันที ไม่พ่นแชทเขียว
-                } else {
-                    throw new Error('บันทึกไม่สำเร็จ');
-                }
-            })
-            .catch((err) => {
-                btn.disabled = false;
-                btn.innerText = "บันทึกรายการออม โฮ่ง!";
-                alert('เกิดข้อผิดพลาด: ' + err.message);
-            });
-        }
-        main();
-    </script>
+            const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}`;
+            
+            liff.sendMessages([{ type: 'text', text: text }])
+                .then(() => { liff.closeWindow(); })
+                .catch((err) => {
+                    btn.disabled = false;
+                    btn.innerText = "บันทึกรายการออม โฮ่ง!";
+                    alert('ส่งไม่สำเร็จ: ' + err.message);
+                });
+        }
+        main();
+    </script>
 </body>
 </html>
