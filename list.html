@@ -10,13 +10,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         body { background-color: #f0f2f5; font-family: 'Kanit', sans-serif; }
-        .bill-card { border-radius: 15px; border: none; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: 0.3s; background: white; overflow: hidden; cursor: pointer; }
-        .bill-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .bill-card { border-radius: 15px; border: none; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); background: white; overflow: hidden; }
+        .card-content { padding: 15px; cursor: pointer; transition: 0.3s; }
+        .card-content:hover { background-color: #f8f9fa; }
+        .card-footer-actions { background: #fafafa; border-top: 1px solid #eee; padding: 10px 15px; display: flex; gap: 8px; justify-content: flex-end; }
         .inst-card { border-radius: 10px; border: 1px solid #eee; margin-bottom: 10px; transition: 0.2s; cursor: pointer; }
         .inst-card:hover { background-color: #f8f9fa; }
         .btn-pay { background-color: #1DB446; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
-        .btn-edit { background-color: #ffc107; border: none; border-radius: 8px; color: #000; font-size: 0.7rem; padding: 4px 8px; font-weight: 600; }
-        .btn-delete { background-color: #ff4d4d; border: none; border-radius: 8px; color: #fff; font-size: 0.7rem; padding: 4px 8px; font-weight: 600; }
+        /* ปุ่มแก้ไข/ลบ ที่อยู่หน้าแรกสุด */
+        .btn-main-edit { background-color: #ffc107; border: none; border-radius: 8px; color: #000; font-size: 0.75rem; padding: 6px 12px; font-weight: 600; }
+        .btn-main-delete { background-color: #ff4d4d; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 6px 12px; font-weight: 600; }
         .status-badge { font-size: 0.7rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
     </style>
 </head>
@@ -35,36 +38,31 @@
                     <h5 class="modal-title fw-bold" id="modal-title">รายละเอียด</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body" id="modal-body">
-                    </div>
+                <div class="modal-body" id="modal-body"></div>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="editModal" tabindex="-1" style="z-index: 1060;">
+    <div class="modal fade" id="editModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius: 20px;">
                 <div class="modal-header border-0">
-                    <h5 class="modal-title fw-bold">📝 แก้ไขงวดนี้</h5>
+                    <h5 class="modal-title fw-bold">📝 แก้ไขรายการออม</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="hidden" id="edit-id">
+                    <input type="hidden" id="edit-old-name">
                     <div class="mb-3">
                         <label class="form-label">🎯 ชื่อรายการ</label>
                         <input type="text" id="edit-name" class="form-control" style="border-radius: 10px;">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">💰 ยอดต่อคน (บาท)</label>
-                        <input type="number" id="edit-amount" class="form-control" style="border-radius: 10px;">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">📅 วันที่งวดนี้</label>
-                        <input type="date" id="edit-date" class="form-control" style="border-radius: 10px;">
+                        <label class="form-label">💰 ยอดเป้าหมายรวม (บาท)</label>
+                        <input type="number" id="edit-total" class="form-control" style="border-radius: 10px;">
                     </div>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-success w-100" onclick="updateBill()" style="border-radius: 10px; background-color: #1DB446;">บันทึก</button>
+                    <button type="button" class="btn btn-success w-100" onclick="updateProject()" style="border-radius: 10px;">บันทึกการแก้ไข</button>
                 </div>
             </div>
         </div>
@@ -80,13 +78,11 @@
             if (error) { listDiv.innerHTML = `<div class="alert alert-danger">${error.message}</div>`; return; }
             if (!bills || bills.length === 0) { listDiv.innerHTML = '<div class="text-center p-5 text-muted">ไม่มีรายการออมเมี๊ยว 🐾</div>'; return; }
 
-            // 1. Group ตามชื่อโปรเจกต์ (เช่น ทริปญี่ปุ่น)
             const projects = {};
             bills.forEach(bill => {
                 if (!projects[bill.bill_name]) {
                     projects[bill.bill_name] = { name: bill.bill_name, total: bill.total_amount, installments: {} };
                 }
-                // 2. Group ย่อยตามวันที่ (งวด)
                 if (!projects[bill.bill_name].installments[bill.next_due]) {
                     projects[bill.bill_name].installments[bill.next_due] = [];
                 }
@@ -97,20 +93,25 @@
             Object.values(projects).forEach(proj => {
                 const totalInst = Object.keys(proj.installments).length;
                 listDiv.innerHTML += `
-                    <div class="card bill-card p-3" onclick="showInstallments('${encodeURIComponent(JSON.stringify(proj))}')">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h5 class="fw-bold mb-0 text-success">🎯 ${proj.name}</h5>
-                                <small class="text-muted">เป้าหมายรวม: ฿${proj.total.toLocaleString()}</small>
+                    <div class="card bill-card">
+                        <div class="card-content" onclick="showInstallments('${encodeURIComponent(JSON.stringify(proj))}')">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="fw-bold mb-0 text-success">🎯 ${proj.name}</h5>
+                                    <small class="text-muted">เป้าหมายรวม: ฿${proj.total.toLocaleString()}</small>
+                                </div>
+                                <span class="badge bg-primary rounded-pill">${totalInst} งวด</span>
                             </div>
-                            <span class="badge bg-primary rounded-pill">${totalInst} งวด</span>
+                        </div>
+                        <div class="card-footer-actions">
+                            <button class="btn-main-edit" onclick="openEditProject('${proj.name}', '${proj.total}')">แก้ไข</button>
+                            <button class="btn-main-delete" onclick="deleteProject('${proj.name}')">ลบ</button>
                         </div>
                     </div>
                 `;
             });
         }
 
-        // STEP 2: แสดงรายการ "งวดที่เท่าไหร่บ้าง"
         function showInstallments(encodedData) {
             const proj = JSON.parse(decodeURIComponent(encodedData));
             const modalBody = document.getElementById('modal-body');
@@ -122,9 +123,6 @@
             sortedDates.forEach((date, index) => {
                 const members = proj.installments[date];
                 const paid = members.filter(m => m.status === 'paid').length;
-                const total = members.length;
-                const refId = members[0].id;
-
                 html += `
                     <div class="inst-card p-3" onclick="showMemberStatus('${encodeURIComponent(JSON.stringify({date, members, projName: proj.name}))}')">
                         <div class="d-flex justify-content-between align-items-center">
@@ -132,24 +130,17 @@
                                 <div class="fw-bold">งวดที่ ${index + 1}</div>
                                 <small class="text-muted">📅 ${date}</small>
                             </div>
-                            <span class="badge ${paid === total ? 'bg-success' : 'bg-warning text-dark'} status-badge">
-                                จ่ายแล้ว ${paid}/${total}
+                            <span class="badge ${paid === members.length ? 'bg-success' : 'bg-warning text-dark'} status-badge">
+                                จ่ายแล้ว ${paid}/${members.length}
                             </span>
-                        </div>
-                        <div class="d-flex gap-2 mt-2">
-                            <button class="btn-edit" onclick="event.stopPropagation(); openEdit('${refId}', '${proj.name}', '${members[0].per_person}', '${date}')">แก้</button>
-                            <button class="btn-delete" onclick="event.stopPropagation(); deleteGroup('${proj.name}', '${date}')">ลบงวดนี้</button>
                         </div>
                     </div>
                 `;
             });
-
-            html += `<div class="text-center mt-3 text-primary small fw-bold">เหลืออีก ${sortedDates.length} งวดที่ต้องเคลียร์!</div>`;
             modalBody.innerHTML = html;
             new bootstrap.Modal(document.getElementById('mainModal')).show();
         }
 
-        // STEP 3: แสดงว่า "งวดนี้มีใครจ่ายบ้าง"
         function showMemberStatus(encodedInst) {
             const data = JSON.parse(decodeURIComponent(encodedInst));
             const modalBody = document.getElementById('modal-body');
@@ -166,7 +157,7 @@
                         </div>
                         <div class="text-end">
                             <div class="fw-bold text-success">฿${m.per_person.toLocaleString()}</div>
-                            ${!isPaid ? `<button class="btn-pay py-1" onclick="quickPay('${m.id}', '${m.member_name}')">บันทึกจ่าย</button>` : ''}
+                            ${!isPaid ? `<button class="btn-pay py-1" onclick="quickPay('${m.id}')">จ่าย</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -174,34 +165,33 @@
             modalBody.innerHTML = html;
         }
 
-        async function quickPay(id, name) {
-            if (confirm(`ยืนยันคุณ "${name}" จ่ายแล้วเมี๊ยว?`)) {
-                const { error } = await client.from('bills').update({ status: 'paid' }).eq('id', id);
-                if (error) alert(error.message); else location.reload();
-            }
-        }
-
-        function openEdit(id, name, amount, date) {
-            document.getElementById('edit-id').value = id;
-            document.getElementById('edit-name').value = name;
-            document.getElementById('edit-amount').value = amount;
-            document.getElementById('edit-date').value = date;
-            new bootstrap.Modal(document.getElementById('editModal')).show();
-        }
-
-        async function updateBill() {
-            const id = document.getElementById('edit-id').value;
-            const { error } = await client.from('bills').update({
-                bill_name: document.getElementById('edit-name').value,
-                per_person: parseFloat(document.getElementById('edit-amount').value),
-                next_due: document.getElementById('edit-date').value
-            }).eq('id', id);
+        async function quickPay(id) {
+            const { error } = await client.from('bills').update({ status: 'paid' }).eq('id', id);
             if (error) alert(error.message); else location.reload();
         }
 
-        async function deleteGroup(name, date) {
-            if (confirm(`ลบงวดวันที่ ${date} ของ "${name}" ทั้งหมด?`)) {
-                const { error } = await client.from('bills').delete().eq('bill_name', name).eq('next_due', date);
+        function openEditProject(name, total) {
+            document.getElementById('edit-old-name').value = name;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-total').value = total;
+            new bootstrap.Modal(document.getElementById('editModal')).show();
+        }
+
+        async function updateProject() {
+            const oldName = document.getElementById('edit-old-name').value;
+            const newName = document.getElementById('edit-name').value;
+            const newTotal = document.getElementById('edit-total').value;
+
+            const { error } = await client.from('bills')
+                .update({ bill_name: newName, total_amount: parseFloat(newTotal) })
+                .eq('bill_name', oldName);
+
+            if (error) alert(error.message); else location.reload();
+        }
+
+        async function deleteProject(name) {
+            if (confirm(`เฮียจะลบรายการ "${name}" ทุกงวดทิ้งทั้งหมดเลยนะ?`)) {
+                const { error } = await client.from('bills').delete().eq('bill_name', name);
                 if (error) alert(error.message); else location.reload();
             }
         }
