@@ -81,8 +81,6 @@
 
     <script>
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
-
-        // --- แก้ไขตรงนี้: ใส่ URL ของ Render ของเฮียลงไปครับ ---
         const RENDER_WEBHOOK_URL = "https://kumamong-bot.onrender.com/create_saving"; 
 
         async function main() {
@@ -97,7 +95,6 @@
                 const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
 
                 const listDiv = document.getElementById('friend-list');
-                
                 if (error || !members || members.length === 0) {
                     listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ มะมง ในกลุ่มก่อน)</div>';
                 } else {
@@ -134,12 +131,15 @@
 
             const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
             const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
+            
+            // ดึง groupId จาก URL
+            const params = new URLSearchParams(window.location.search);
+            const groupId = params.get('groupId') || 'personal';
 
             const btn = document.getElementById('saveBtn');
             btn.disabled = true;
             btn.innerText = "มะมงกำลังบันทึก...";
 
-            // ข้อมูลที่จะส่งไปให้ Render
             const payload = {
                 goal: goal,
                 total: total,
@@ -149,18 +149,16 @@
                 time: time,
                 targetIds: targetIds,
                 targetNames: targetNames,
-                userId: liff.getContext()?.userId || ''
+                userId: liff.getContext()?.userId || '',
+                groupId: groupId // ส่ง groupId ไปให้หลังบ้านด้วย
             };
 
             try {
-                // ส่งข้อมูลไปที่ Render โดยตรง (ไม่ผ่าน liff.sendMessages แชทเลยไม่รก)
                 await fetch(RENDER_WEBHOOK_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
-                // บันทึกเสร็จแล้วปิดหน้าต่างทันที
                 liff.closeWindow();
             } catch (err) {
                 btn.disabled = false;
