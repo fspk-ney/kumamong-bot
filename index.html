@@ -34,6 +34,7 @@
                 <div id="friend-list" class="friend-list-container">
                     <div class="text-muted small p-2">กำลังโหลดรายชื่อเพื่อน...</div>
                 </div>
+                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "มะมง" ในกลุ่มก่อน</small>
             </div>
 
             <div class="mb-3">
@@ -54,7 +55,8 @@
                 <div class="col-6 mb-3">
                     <label class="form-label"> เก็บซ้ำทุก ๆ</label>
                     <select id="unit" class="form-select">
-                        <option value="5_minutes">ทุก ๆ 5 นาที (เทส)</option>
+                        <option value="5_minutes">ทุก ๆ 5 นาที (สายเร่ง)</option>
+                        <option value="10_minutes">ทุก ๆ 10 นาที (ทดสอบ)</option>
                         <option value="1d">ทุกวัน</option>
                         <option value="7d">ทุกสัปดาห์</option>
                         <option value="1m">ทุกเดือน</option>
@@ -79,7 +81,6 @@
 
     <script>
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
-        const RENDER_WEBHOOK_URL = "https://kumamong-bot.onrender.com/create_saving"; 
 
         async function main() {
             try {
@@ -94,7 +95,7 @@
                 const listDiv = document.getElementById('friend-list');
                 
                 if (error || !members || members.length === 0) {
-                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ มะมง ในกลุ่มก่อน)</div>';
+                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อน (ให้เพื่อนพิมพ์ "มะมง" ในกลุ่มก่อน)</div>';
                 } else {
                     listDiv.innerHTML = '';
                     const seenIds = new Set();
@@ -114,7 +115,7 @@
             } catch (err) { alert("LIFF Error: " + err.message); }
         }
 
-        async function confirmSave() {
+        function confirmSave() {
             const checkedFriends = document.querySelectorAll('input[name="friend"]:checked');
             if(checkedFriends.length === 0) return alert('ต้องเลือกเพื่อนอย่างน้อย 1 คน');
 
@@ -125,29 +126,29 @@
             const start = document.getElementById('start').value;
             const time = document.getElementById('time').value;
 
+            if(!goal || !total) return alert('กรอกข้อมูลให้ครบก่อนนะครับ');
+
             const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
             const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
+            
+            // ดึง groupId เพื่อส่งไปในข้อความ
             const params = new URLSearchParams(window.location.search);
-            const groupId = params.get('groupId') || 'personal';
+            const gid = params.get('groupId') || 'personal';
 
             const btn = document.getElementById('saveBtn');
-            btn.disabled = true; btn.innerText = "กำลังบันทึก...";
+            btn.disabled = true;
+            btn.innerText = "มะมงกำลังบันทึก...";
 
-            try {
-                await fetch(RENDER_WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        goal, total, count, unit, start, time, 
-                        targetIds, targetNames, groupId,
-                        userId: liff.getContext()?.userId || ''
-                    })
+            // เพิ่มบรรทัด GroupID: เข้าไปในชุดข้อความเพื่อให้ Backend แกะไปลง DB ได้ถูกกลุ่ม
+            const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}\nGroupID: ${gid}`;
+            
+            liff.sendMessages([{ type: 'text', text: text }])
+                .then(() => { liff.closeWindow(); })
+                .catch((err) => {
+                    btn.disabled = false;
+                    btn.innerText = "บันทึกรายการออม โฮ่ง!";
+                    alert('ส่งไม่สำเร็จ: ' + err.message);
                 });
-                liff.closeWindow(); // ปิดหน้าต่างทันที บอทจะตอบกลับเองหลังบ้าน
-            } catch (err) {
-                btn.disabled = false; btn.innerText = "บันทึกรายการออม โฮ่ง!";
-                alert('เกิดข้อผิดพลาด: ' + err.message);
-            }
         }
         main();
     </script>
