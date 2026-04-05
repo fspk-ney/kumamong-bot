@@ -36,6 +36,7 @@ def serve_list():
 def create_saving_api():
     data = request.get_json()
     try:
+        # --- ดึงข้อมูลจาก Payload (เหมือนเดิมเป๊ะ) ---
         goal = data['goal']
         total_project_amount = float(data['total'])
         total_installments = int(data['count'])
@@ -46,22 +47,20 @@ def create_saving_api():
         t_names = data['targetNames'].split(',')
         group_id = data.get('groupId', 'personal')
         user_id = data.get('userId')
-        reply_token = data.get('replyToken') # 🐾 [เพิ่ม] รับ Token จากหน้าเว็บ
+        reply_token = data.get('replyToken') # 🐾 รับ Token มาจากหน้าบ้าน
 
         num_people = len(t_ids)
         amount_per_person_total = total_project_amount / num_people
         amount_per_person_per_period = round(amount_per_person_total / total_installments, 2)
-        
         base_time = datetime.strptime(f"{start_str} {time_str}", "%Y-%m-%d %H:%M")
 
-        # บันทึกลง Supabase ทีละงวด
+        # บันทึกลง Supabase (เหมือนเดิม)
         for i in range(total_installments):
             if unit == "1d": due_time = base_time + timedelta(days=i)
             elif unit == "7d": due_time = base_time + timedelta(weeks=i)
             elif unit == "14d": due_time = base_time + timedelta(weeks=i*2)
             elif unit == "1m": due_time = base_time + relativedelta(months=i)
             else: due_time = base_time + timedelta(days=i)
-
             due_str = due_time.strftime('%Y-%m-%d %H:%M:%S')
 
             for tid, tname in zip(t_ids, t_names):
@@ -71,14 +70,17 @@ def create_saving_api():
                     "remind_time": time_str, "target_user_id": tid, "member_name": tname, "group_id": group_id
                 }).execute()
 
-        # 🐾 [แก้ไข] เปลี่ยนจาก Push เป็น Reply เพื่อตอบกลับฟรีทันที
+        # 🐾 ส่วนที่ทำให้มะมงตอบ (ใส่ Try คร่อมไว้เพื่อไม่ให้หน้าเว็บหมุนถ้าส่ง LINE ไม่สำเร็จ)
         if reply_token:
-            confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n👥 สมาชิก: {data['targetNames']}\n\nมะมงรับทราบ! เดี๋ยวรอเช็กยอดในหน้าสรุปนะครับ โฮ่ง! 🐾"
-            line_bot_api.reply_message(reply_token, TextSendMessage(text=confirm_text))
+            try:
+                confirm_text = f"🪙 บันทึกรายการสำเร็จ!\n📌 รายการ: {goal}\n💰 ยอดรวม: {total_project_amount:,.2f} บาท\n\nมะมงจดลงสมุดบัญชีเรียบร้อย โฮ่ง! 🐾"
+                line_bot_api.reply_message(reply_token, TextSendMessage(text=confirm_text))
+            except Exception as line_err:
+                print(f"LINE Error: {line_err}") # ถ้า LINE โควตาเต็มหรือ Token ผิด ก็แค่ข้ามไป ไม่ทำให้หน้าเว็บค้าง
 
-        return "OK", 200
+        return "OK", 200 # คืนค่าให้หน้าเว็บหยุดหมุนเสมอ
     except Exception as e:
-        print(f"Error in API: {e}") 
+        print(f"API Error: {e}")
         return str(e), 500
 
 # --- 🚀 ระบบทวงเงิน ---
@@ -142,7 +144,7 @@ def check_bills():
                 }
             }
             # ตรงนี้ยังเป็น push_message (จะทำงานได้เมื่อโควตารีเซ็ต หรือซื้อเพิ่ม)
-            #line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"งวดที่ {current_inst} บิล {bill_name}", contents=flex))
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"งวดที่ {current_inst} บิล {bill_name}", contents=flex))
         except Exception as e: print(f"Error in check_bills: {e}")
             
     return "Check Complete", 200
