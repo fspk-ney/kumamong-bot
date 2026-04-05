@@ -35,33 +35,40 @@ def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(tz)
     
-    # 1. ดึงเฉพาะบิลที่ยังไม่จ่าย
-    res = supabase.table("bills").select("*").eq("status", "pending").execute()
+    # 1. ดึงบิลทั้งหมด (ทั้งที่จ่ายแล้วและยังไม่จ่าย) เพื่อเอามาทำ List สถานะ
+    res = supabase.table("bills").select("*").execute()
     if not res.data:
-        return "No pending bills", 200
+        return "No bills found", 200
     
-    # 2. จัดกลุ่มบิลตามชื่อรายการและ ID กลุ่ม (เพื่อให้บิลชื่อเดียวกันในกลุ่มเดียวกันอยู่ด้วยกัน)
+    # 2. จัดกลุ่มบิลตามชื่อรายการและกลุ่ม
     grouped_bills = {}
     for bill in res.data:
-        # ใช้ชื่อบิล + group_id เป็น Key ในการรวมกลุ่ม
         group_key = f"{bill['bill_name']}_{bill.get('group_id', 'personal')}"
         if group_key not in grouped_bills:
             grouped_bills[group_key] = []
         grouped_bills[group_key].append(bill)
 
-    # 3. ส่ง Flex Message 1 ใบ ต่อ 1 กลุ่มรายการ
+    # 3. สร้าง Flex Message ใบเดียวที่มีรายละเอียดครบ
     for key, members in grouped_bills.items():
         try:
             bill_name = members[0]['bill_name']
             target_destination = members[0].get('group_id') or members[0].get('target_user_id') or members[0]['created_by']
             
-            # สร้างรายการชื่อสมาชิกที่ยังไม่จ่าย (List Contents)
+            # เช็กว่าบิลนี้จ่ายครบทุกคนหรือยัง (ถ้าครบแล้วอาจจะไม่ต้องทวง)
+            all_paid = all(m['status'] == 'paid' for m in members)
+            if all_paid: continue 
+
             member_list_ui = []
             for m in members:
+                is_paid = m['status'] == 'paid'
+                icon = "✅" if is_paid else "⏳"
+                color = "#1DB446" if is_paid else "#ff4d4d"
+                status_text = "จ่ายแล้ว" if is_paid else "ยังไม่จ่าย"
+
                 member_list_ui.append({
-                    "type": "box", "layout": "horizontal", "contents": [
-                        {"type": "text", "text": f"⏳ {m['member_name']}", "size": "sm", "color": "#666666", "flex": 4},
-                        {"type": "text", "text": f"{m['per_person']:,.2f}.-", "size": "sm", "align": "end", "weight": "bold", "flex": 2}
+                    "type": "box", "layout": "horizontal", "margin": "sm", "contents": [
+                        {"type": "text", "text": f"{icon} {m['member_name']}", "size": "sm", "color": "#111111", "flex": 4},
+                        {"type": "text", "text": status_text, "size": "xs", "color": color, "align": "end", "flex": 2}
                     ]
                 })
 
@@ -69,27 +76,28 @@ def check_bills():
                 "type": "bubble",
                 "body": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": "🔔 ได้เวลาออมเงินแล้วเมี๊ยว!", "weight": "bold", "color": "#1DB446", "size": "sm"},
+                        {"type": "text", "text": "💰 รายละเอียดบิลกลุ่ม", "weight": "bold", "color": "#1DB446", "size": "sm"},
                         {"type": "text", "text": bill_name, "weight": "bold", "size": "xl", "margin": "md"},
+                        {"type": "text", "text": f"ยอดต่อคน: {members[0]['per_person']:,.2f} บาท", "size": "xs", "color": "#888888"},
                         {"type": "separator", "margin": "lg"},
-                        {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": member_list_ui},
+                        {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "xs", "contents": member_list_ui},
                         {"type": "separator", "margin": "lg"},
-                        {"type": "text", "text": "* รายชื่อด้านบนคือคนที่ยังไม่ได้แจ้งจ่ายนะเมี๊ยว", "size": "xs", "color": "#aaaaaa", "margin": "md"}
+                        {"type": "text", "text": "* อัปเดตสถานะล่าสุดเมี๊ยว 🐾", "size": "xs", "color": "#aaaaaa", "margin": "md"}
                     ]
                 },
                 "footer": {
-                    "type": "box", "layout": "vertical", "spacing": "sm", "contents": [
+                    "type": "box", "layout": "vertical", "contents": [
                         {"type": "button", "style": "primary", "color": "#1DB446", "action": {
-                            "type": "uri", "label": "✅ ไปหน้าแจ้งจ่ายเงิน (รายคน)", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
+                            "type": "uri", "label": "✅ แจ้งจ่ายเงิน / ดูทั้งหมด", "uri": f"https://liff.line.me/{MY_LIFF_ID}/list"
                         }}
                     ]
                 }
             }
             
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"ทวงเงินรายการ {bill_name}", contents=flex))
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"อัปเดตบิล {bill_name}", contents=flex))
 
         except Exception as e:
-            print(f"Error ทวงเงินกลุ่ม {key}: {e}")
+            print(f"Error: {e}")
             
     return "Check Complete", 200
 
