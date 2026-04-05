@@ -10,14 +10,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         body { background-color: #f0f2f5; font-family: 'Kanit', sans-serif; }
-        .bill-card { border-radius: 15px; border: none; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: 0.3s; background: white; }
+        .bill-card { border-radius: 15px; border: none; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: 0.3s; background: white; overflow: hidden; }
         .bill-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .btn-edit { background-color: #ffc107; border: none; border-radius: 8px; color: #000; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
-        .btn-delete { background-color: #ff4d4d; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
+        .card-clickable { cursor: pointer; padding: 15px; }
+        .btn-edit { background-color: #ffc107; border: none; border-radius: 8px; color: #000; font-size: 0.75rem; padding: 6px 12px; font-weight: 600; }
+        .btn-delete { background-color: #ff4d4d; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 6px 12px; font-weight: 600; }
         .btn-pay { background-color: #1DB446; border: none; border-radius: 8px; color: #fff; font-size: 0.75rem; padding: 5px 10px; font-weight: 600; }
-        .status-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
-        .status-paid { background: #e3f9e5; color: #1DB446; }
-        .status-pending { background: #fff4e5; color: #f39c12; }
+        .status-badge { font-size: 0.7rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
     </style>
 </head>
 <body class="p-3">
@@ -65,8 +64,7 @@
                     <h5 class="modal-title fw-bold" id="detail-title">รายละเอียดสมาชิก</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body" id="detail-body">
-                    </div>
+                <div class="modal-body" id="detail-body"></div>
             </div>
         </div>
     </div>
@@ -81,7 +79,6 @@
             if (error) { listDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`; return; }
             if (!bills || bills.length === 0) { listDiv.innerHTML = '<div class="text-center p-5 text-muted">ยังไม่มีรายการเมี๊ยว 🐾</div>'; return; }
 
-            // --- 🌀 จัดกลุ่มข้อมูลตามชื่อบิลและงวด ---
             const grouped = {};
             bills.forEach(bill => {
                 const key = `${bill.bill_name}_${bill.next_due}`;
@@ -101,29 +98,37 @@
             Object.values(grouped).forEach(group => {
                 const paidCount = group.members.filter(m => m.status === 'paid').length;
                 const totalCount = group.members.length;
-                
-                // คำนวณยอดที่เหลือ (เอายอดรวมทั้งหมด ลบด้วย จำนวนคนที่จ่ายแล้วคูณยอดต่องวด)
                 const totalPaidAmount = group.per_person * paidCount;
                 const remaining = (group.total_project > 0) ? (group.total_project - totalPaidAmount) : 0;
+                
+                // อ้างอิง ID แรกของกลุ่มไว้ใช้สำหรับปุ่มแก้ไขเบื้องต้น
+                const refId = group.members[0].id;
 
                 listDiv.innerHTML += `
-                    <div class="card bill-card p-3" onclick="showDetail('${encodeURIComponent(JSON.stringify(group))}')" style="cursor: pointer;">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6 class="fw-bold mb-1">🎯 ${group.bill_name}</h6>
-                                <small class="text-muted">📅 งวดวันที่: ${group.next_due}</small>
+                    <div class="card bill-card mb-3">
+                        <div class="card-clickable" onclick="showDetail('${encodeURIComponent(JSON.stringify(group))}')">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="fw-bold mb-1">🎯 ${group.bill_name}</h6>
+                                    <small class="text-muted">📅 งวดวันที่: ${group.next_due}</small>
+                                </div>
+                                <span class="badge ${paidCount === totalCount ? 'bg-success' : 'bg-warning text-dark'} status-badge">
+                                    จ่ายแล้ว ${paidCount}/${totalCount} คน
+                                </span>
                             </div>
-                            <span class="badge ${paidCount === totalCount ? 'bg-success' : 'bg-warning text-dark'} status-badge">
-                                จ่ายแล้ว ${paidCount}/${totalCount} คน
-                            </span>
+                            <hr class="my-2 opacity-50">
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">ยอดรวมทริป: ฿${group.total_project.toLocaleString()}</small>
+                                <small class="text-danger fw-bold">ค้างอีก: ฿${remaining.toLocaleString()}</small>
+                            </div>
+                            <div class="text-center mt-2">
+                                <small class="text-primary" style="font-size: 0.7rem;">แตะเพื่อดูรายชื่อสมาชิก 🐾</small>
+                            </div>
                         </div>
-                        <hr class="my-2 opacity-50">
-                        <div class="d-flex justify-content-between">
-                            <small class="text-muted">ยอดรวมทริป: ฿${group.total_project.toLocaleString()}</small>
-                            <small class="text-danger fw-bold">ค้างอีก: ฿${remaining.toLocaleString()}</small>
-                        </div>
-                        <div class="text-center mt-2">
-                            <small class="text-primary" style="font-size: 0.75rem;">แตะเพื่อดูรายชื่อ/จัดการ 🐾</small>
+                        
+                        <div class="d-flex justify-content-end gap-2 p-2 bg-light border-top">
+                            <button class="btn-edit" onclick="openEdit('${refId}', '${group.bill_name}', '${group.per_person}', '${group.next_due}')">แก้ไข</button>
+                            <button class="btn-delete" onclick="deleteGroup('${group.bill_name}', '${group.next_due}')">ลบทั้งหมด</button>
                         </div>
                     </div>
                 `;
@@ -138,22 +143,15 @@
             let memberHtml = '';
             group.members.forEach(m => {
                 const isPaid = m.status === 'paid';
-                const statusText = isPaid ? '✅ จ่ายแล้ว' : '⏳ รอจ่าย';
-                const statusClass = isPaid ? 'text-success' : 'text-warning';
-                
                 memberHtml += `
                     <div class="d-flex justify-content-between align-items-center mb-3 p-2 border-bottom">
                         <div>
                             <div class="fw-bold" style="font-size: 0.95rem;">${m.member_name}</div>
-                            <small class="${statusClass}">${statusText}</small>
+                            <small class="${isPaid ? 'text-success' : 'text-warning'}">${isPaid ? '✅ จ่ายแล้ว' : '⏳ รอจ่าย'}</small>
                         </div>
                         <div class="text-end">
                             <div class="fw-bold text-success">฿${m.per_person.toLocaleString()}</div>
-                            <div class="mt-1 d-flex gap-1 justify-content-end">
-                                ${!isPaid ? `<button class="btn-pay" onclick="event.stopPropagation(); quickPay('${m.id}', '${m.member_name}')">จ่าย</button>` : ''}
-                                <button class="btn-edit" onclick="event.stopPropagation(); openEdit('${m.id}', '${m.bill_name}', '${m.per_person}', '${m.next_due}')">แก้</button>
-                                <button class="btn-delete" onclick="event.stopPropagation(); deleteBill('${m.id}', '${m.member_name}')">ลบ</button>
-                            </div>
+                            ${!isPaid ? `<button class="btn-pay mt-1" onclick="quickPay('${m.id}', '${m.member_name}')">จ่าย</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -175,11 +173,6 @@
             document.getElementById('edit-name').value = name;
             document.getElementById('edit-amount').value = amount;
             document.getElementById('edit-date').value = date;
-            
-            // ปิด Modal รายละเอียดก่อนเปิด Modal แก้ไข
-            const detailModal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
-            if(detailModal) detailModal.hide();
-            
             new bootstrap.Modal(document.getElementById('editModal')).show();
         }
 
@@ -189,20 +182,21 @@
             const amount = document.getElementById('edit-amount').value;
             const date = document.getElementById('edit-date').value;
 
+            // แก้ไขข้อมูลโดยอ้างอิงชื่อบิลและงวดเดิม เพื่อให้เปลี่ยนทั้งกลุ่ม
             const { error } = await client.from('bills')
                 .update({ bill_name: name, per_person: parseFloat(amount), next_due: date })
                 .eq('id', id);
 
             if (error) alert("แก้ไม่สำเร็จ: " + error.message);
-            else {
-                alert("แก้ไขข้อมูลเรียบร้อยเมี๊ยว! 🐾");
-                location.reload();
-            }
+            else { alert("แก้ไขเรียบร้อยเมี๊ยว! 🐾"); location.reload(); }
         }
 
-        async function deleteBill(id, name) {
-            if (confirm(`เฮียแน่ใจนะว่าจะลบรายการของ "${name}" ?`)) {
-                const { error } = await client.from('bills').delete().eq('id', id);
+        async function deleteGroup(name, date) {
+            if (confirm(`เฮียแน่ใจนะว่าจะลบรายการ "${name}" งวดวันที่ ${date} ทั้งหมด?`)) {
+                const { error } = await client.from('bills')
+                    .delete()
+                    .eq('bill_name', name)
+                    .eq('next_due', date);
                 if (error) alert("ลบไม่สำเร็จ: " + error.message);
                 else location.reload();
             }
