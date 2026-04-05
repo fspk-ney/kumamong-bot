@@ -82,6 +82,9 @@
     <script>
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
 
+        // --- แก้ไขตรงนี้: ใส่ URL ของ Render ของเฮียลงไปครับ ---
+        const RENDER_WEBHOOK_URL = "ใส่_URL_ของ_Render_ที่นี่"; 
+
         async function main() {
             try {
                 await liff.init({ liffId: "2009693749-SfmWsP0l" });
@@ -116,7 +119,7 @@
             } catch (err) { alert("LIFF Error: " + err.message); }
         }
 
-        function confirmSave() {
+        async function confirmSave() {
             const checkedFriends = document.querySelectorAll('input[name="friend"]:checked');
             if(checkedFriends.length === 0) return alert('ต้องเลือกเพื่อนอย่างน้อย 1 คน');
 
@@ -136,15 +139,34 @@
             btn.disabled = true;
             btn.innerText = "มะมงกำลังบันทึก...";
 
-            const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}`;
-            
-            liff.sendMessages([{ type: 'text', text: text }])
-                .then(() => { liff.closeWindow(); })
-                .catch((err) => {
-                    btn.disabled = false;
-                    btn.innerText = "บันทึกรายการออม โฮ่ง!";
-                    alert('ส่งไม่สำเร็จ: ' + err.message);
+            // ข้อมูลที่จะส่งไปให้ Render
+            const payload = {
+                goal: goal,
+                total: total,
+                count: count,
+                unit: unit,
+                start: start,
+                time: time,
+                targetIds: targetIds,
+                targetNames: targetNames,
+                userId: liff.getContext()?.userId || ''
+            };
+
+            try {
+                // ส่งข้อมูลไปที่ Render โดยตรง (ไม่ผ่าน liff.sendMessages แชทเลยไม่รก)
+                await fetch(RENDER_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
+
+                // บันทึกเสร็จแล้วปิดหน้าต่างทันที
+                liff.closeWindow();
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerText = "บันทึกรายการออม โฮ่ง!";
+                alert('ส่งข้อมูลไม่สำเร็จ: ' + err.message);
+            }
         }
         main();
     </script>
