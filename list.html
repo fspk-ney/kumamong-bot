@@ -19,6 +19,9 @@
         .btn-main-edit { background-color: #ffc107; border: none; border-radius: 10px; padding: 6px 15px; font-weight: 600; color: #000; }
         .btn-main-delete { background-color: #ff4d4d; border: none; border-radius: 10px; color: #fff; padding: 6px 15px; font-weight: 600; }
         .progress-mini { height: 12px; border-radius: 10px; background: #eee; margin-top: 10px; }
+        /* สไตล์เพิ่มเติมสำหรับโชว์ยอดเงิน */
+        .money-text { font-size: 0.9rem; font-weight: 600; color: #2c3e50; }
+        .goal-text { font-size: 0.75rem; color: #888; }
     </style>
 </head>
 <body class="p-3">
@@ -72,13 +75,11 @@
 
         async function loadBills() {
             const listDiv = document.getElementById('bill-list');
-            // เรียงตาม ID เพื่อให้ลำดับการเก็บเงิน (งวด) ไม่สลับกัน
             const { data: bills, error } = await client.from('bills').select('*').order('id', { ascending: true });
             
             if (error) { listDiv.innerHTML = `<div class="alert alert-danger">${error.message}</div>`; return; }
             if (!bills || bills.length === 0) { listDiv.innerHTML = '<div class="text-center p-5">ยังไม่มีรายการครับเฮีย 🐾</div>'; return; }
 
-            // 1. แยกกลุ่มตามโปรเจกต์ก่อน
             const grouped = {};
             bills.forEach(bill => {
                 if (!grouped[bill.bill_name]) {
@@ -88,16 +89,12 @@
             });
 
             allProjects = Object.values(grouped).map(proj => {
-                // 🛠️ Logic สำคัญ: หาว่าโปรเจกต์นี้มีกี่คนจ่าย (เฮีย+เมีย = 2)
                 const uniqueNames = [...new Set(proj.raw.map(b => b.member_name))];
                 const memberCount = uniqueNames.length; 
-                
-                // 🛠️ แบ่งงวด: จับข้อมูลยัดลงตระกร้า งวดละ memberCount คน
                 const installmentList = [];
                 for (let i = 0; i < proj.raw.length; i += memberCount) {
                     installmentList.push(proj.raw.slice(i, i + memberCount));
                 }
-
                 return { ...proj, memberCount, installmentList };
             });
 
@@ -107,6 +104,11 @@
                 const finishedInstCount = proj.installmentList.filter(inst => inst.every(m => m.status === 'paid')).length;
                 const perPersonTotal = proj.total / proj.memberCount;
                 const perInst = proj.installmentList[0][0].per_person;
+
+                // --- 💰 คำนวณเงินจริงตามงวดที่จ่ายแล้ว ---
+                const currentCollected = proj.raw
+                    .filter(b => b.status === 'paid')
+                    .reduce((sum, b) => sum + b.per_person, 0);
 
                 listDiv.innerHTML += `
                     <div class="card bill-card">
@@ -130,7 +132,14 @@
                                 </div>
                             </div>
 
-                            <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between align-items-end">
+                                    <span class="money-text">💰 เก็บได้แล้ว: ฿${currentCollected.toLocaleString()}</span>
+                                    <span class="goal-text">จากทั้งหมด ฿${proj.total.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-2">
                                 <span class="fw-bold" style="font-size: 0.85rem;">
                                     🚀 ความคืบหน้า: <span class="text-success">${finishedInstCount}</span> / ${totalInstCount} งวด
                                 </span>
@@ -138,7 +147,7 @@
                             </div>
                             <div class="progress progress-mini">
                                 <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
-                                     style="width: ${(finishedInstCount/totalInstCount)*100}%">
+                                     style="width: ${(currentCollected / proj.total) * 100}%">
                                 </div>
                             </div>
                         </div>
@@ -151,11 +160,11 @@
             });
         }
 
+        // ฟังก์ชันอื่นๆ (เหมือนเดิมครบถ้วนครับเฮีย)
         function showInstallmentList(idx) {
             const proj = allProjects[idx];
             const modalBody = document.getElementById('modal-body');
             document.getElementById('modal-title').innerText = `งวดทั้งหมด: ${proj.name}`;
-            
             let html = ``;
             proj.installmentList.forEach((inst, i) => {
                 const paidCount = inst.filter(m => m.status === 'paid').length;
@@ -182,7 +191,6 @@
             const members = proj.installmentList[instIdx];
             const modalBody = document.getElementById('modal-body');
             document.getElementById('modal-title').innerText = `งวดที่ ${instIdx + 1} (${proj.name})`;
-            
             let html = `<button class="btn btn-sm btn-light mb-3" onclick="showInstallmentList(${projIdx})">⬅ ย้อนกลับไปดูงวด</button>`;
             members.forEach(m => {
                 const isPaid = m.status === 'paid';

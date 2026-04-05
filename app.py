@@ -29,14 +29,13 @@ def serve_index():
 def serve_list():
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงิน (แยกงวด 1 งวดต่อ 1 ข้อความ) ---
+# --- 🚀 ระบบทวงเงิน (ปรับปรุงให้บอกเลขงวด) ---
 @app.route('/check_bills')
 def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(tz)
     now_str = now.strftime('%Y-%m-%d %H:%M:%S')
     
-    # ดึงเฉพาะรายการที่ถึงกำหนด และยังไม่จ่าย
     res = supabase.table("bills") \
         .select("*") \
         .lte("next_due", now_str) \
@@ -46,11 +45,8 @@ def check_bills():
     if not res.data:
         return "No bills due", 200
     
-    # จัดกลุ่มตาม "บิล" และ "เวลาที่ต้องจ่าย (งวด)" เพื่อแยกส่ง
-    # group_key จะรวมเวลาเข้าไปด้วย เพื่อให้งวดที่เวลาต่างกันถูกแยกออกจากกัน
     grouped_installments = {}
     for bill in res.data:
-        # ใช้ชื่อบิล + กลุ่ม + เวลาที่ต้องส่ง เป็น Key ในการแยกแผ่น
         installment_key = f"{bill['bill_name']}_{bill.get('group_id')}_{bill['next_due']}"
         if installment_key not in grouped_installments:
             grouped_installments[installment_key] = []
@@ -58,13 +54,19 @@ def check_bills():
 
     for key, members in grouped_installments.items():
         try:
-            bill_name = members[0]['bill_name']
-            due_time = members[0]['next_due']
-            target_destination = members[0].get('group_id') or members[0].get('target_user_id') or members[0]['created_by']
+            sample = members[0]
+            bill_name = sample['bill_name']
+            due_time = sample['next_due']
+            target_destination = sample.get('group_id') or sample.get('target_user_id') or sample['created_by']
             
+            # 🐾 มะมงเพิ่ม Logic นับงวดตรงนี้ครับเฮีย
+            all_res = supabase.table("bills").select("next_due").eq("bill_name", bill_name).order("next_due").execute()
+            unique_dates = sorted(list(set([b['next_due'] for b in all_res.data])))
+            total_inst = len(unique_dates)
+            current_inst = unique_dates.index(due_time) + 1
+
             member_list_ui = []
             for m in members:
-                # ในแผ่นนี้จะโชว์เฉพาะคนในงวดนั้นๆ ที่ยังไม่จ่าย
                 member_list_ui.append({
                     "type": "box", "layout": "horizontal", "margin": "sm", "contents": [
                         {"type": "text", "text": f"⏳ {m['member_name']}", "size": "sm", "color": "#111111", "flex": 4},
@@ -76,10 +78,10 @@ def check_bills():
                 "type": "bubble",
                 "body": {
                     "type": "box", "layout": "vertical", "contents": [
-                        {"type": "text", "text": "📢 มะมงมาทวงเงินรายงวดครับ! 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
+                        {"type": "text", "text": f"📢 งวดที่ {current_inst}/{total_inst} มาแล้วครับ! 🐶", "weight": "bold", "color": "#1DB446", "size": "sm"},
                         {"type": "text", "text": bill_name, "weight": "bold", "size": "xl", "margin": "md"},
-                        {"type": "text", "text": f"งวดประจำเวลา: {due_time}", "size": "xs", "color": "#ff4d4d", "weight": "bold"},
-                        {"type": "text", "text": f"ยอดต่อคน: {members[0]['per_person']:,.2f} บาท", "size": "xs", "color": "#888888", "margin": "xs"},
+                        {"type": "text", "text": f"กำหนดจ่าย: {due_time}", "size": "xs", "color": "#ff4d4d", "weight": "bold"},
+                        {"type": "text", "text": f"ยอดต่อคน: {sample['per_person']:,.2f} บาท", "size": "xs", "color": "#888888", "margin": "xs"},
                         {"type": "separator", "margin": "lg"},
                         {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "xs", "contents": member_list_ui},
                         {"type": "separator", "margin": "lg"},
@@ -94,7 +96,7 @@ def check_bills():
                     ]
                 }
             }
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"มะมงทวงบิล {bill_name} งวด {due_time}", contents=flex))
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"งวดที่ {current_inst} บิล {bill_name}", contents=flex))
         except Exception as e:
             print(f"Error in check_bills: {e}")
             
@@ -202,13 +204,8 @@ def handle_message(event):
                     }
                     supabase.table("bills").insert(data).execute()
             
-            confirm_msg = (
-                f"✅ มะมงบันทึกรายการ '{goal}' เรียบร้อย!\n"
-                f"⏱️ ความถี่: {unit}\n"
-                f"💰 ยอดรวม: {total_project_amount:,.2f} บาท\n"
-                f"📅 ทั้งหมด {total_installments} งวด จัดไปครับเฮีย!"
-            )
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=confirm_msg))
+            # 🐾 มะมงเปลี่ยนจากสรุปยาว เป็นตอบสั้นๆ ตามใจเฮียครับ
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"รับทราบครับเฮีย! 🐾 มะมงบันทึกรายการ '{goal}' ให้เรียบร้อย เตรียมรอแจ้งเตือนได้เลยครับ"))
 
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"โฮ่ง! มะมงคำนวณพลาด: {str(e)}"))
