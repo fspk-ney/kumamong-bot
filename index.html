@@ -12,9 +12,12 @@
         body { background-color: #f8f9fa; font-family: 'Kanit', sans-serif; }
         .card { border-radius: 20px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .btn-success { background-color: #1DB446; border: none; border-radius: 12px; padding: 12px; font-weight: 600; transition: 0.3s; }
-        .btn-success:hover { background-color: #169e3d; transform: translateY(-2px); }
         .form-label { font-weight: 600; font-size: 0.9rem; color: #444; }
-        .form-control, .form-select { border-radius: 10px; border: 1px solid #ddd; padding: 10px; }
+        /* สไตล์ใหม่สำหรับรายการเพื่อน */
+        .friend-list-container { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: white; }
+        .friend-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; }
+        .friend-item:last-child { border-bottom: none; }
+        .friend-item input { margin-right: 12px; transform: scale(1.2); }
         .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
     </style>
 </head>
@@ -28,16 +31,16 @@
             <h4 class="text-center fw-bold mb-4">💰 สร้างรายการออมใหม่</h4>
             
             <div class="mb-3">
-                <label class="form-label">👥 เลือกเพื่อนที่จะออมด้วย</label>
-                <select id="target_user" class="form-select">
-                    <option value="">กำลังโหลดรายชื่อเพื่อน...</option>
-                </select>
-                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "เมี๊ยว" ในกลุ่มก่อนนะเมี๊ยว</small>
+                <label class="form-label">👥 เลือกเพื่อนที่จะออมด้วย (เลือกได้หลายคน)</label>
+                <div id="friend-list" class="friend-list-container">
+                    <div class="text-muted small p-2">กำลังโหลดรายชื่อเพื่อน...</div>
+                </div>
+                <small class="text-muted" style="font-size: 0.7rem;">*ถ้าไม่เจอชื่อเพื่อน ให้เพื่อนพิมพ์ "เมี๊ยว" ในกลุ่มก่อน</small>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">🎯 ชื่อรายการออม (ทริป/เป้าหมาย)</label>
-                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ค่าเทอม">
+                <label class="form-label">🎯 ชื่อรายการออม</label>
+                <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น">
             </div>
 
             <div class="mb-3">
@@ -55,7 +58,7 @@
                     <select id="unit" class="form-select">
                         <option value="7d">ทุกอาทิตย์</option>
                         <option value="1m">ทุกเดือน</option>
-                        <option value="1d">ทุกวัน (สายโหด)</option>
+                        <option value="1d">ทุกวัน</option>
                     </select>
                 </div>
             </div>
@@ -66,7 +69,7 @@
                     <input type="date" id="start" class="form-control">
                 </div>
                 <div class="col-6 mb-4">
-                    <label class="form-label">⏰ เวลาทวงเงิน</label>
+                    <label class="form-label">⏰ เวลาทวง</label>
                     <input type="time" id="time" class="form-control" value="08:00">
                 </div>
             </div>
@@ -76,66 +79,47 @@
     </div>
 
     <script>
-        // --- ตั้งค่า Supabase ---
         const client = supabase.createClient("https://jvuhjuvvarpjcwpgwkny.supabase.co", "sb_publishable_H3wOadSnVy-bEwHt0Ls5kA_8V8Olboe");
 
         async function main() {
             try {
-                // 1. เริ่มต้น LIFF
                 await liff.init({ liffId: "2009693749-SfmWsP0l" });
+                if (!liff.isLoggedIn()) { liff.login(); return; }
 
-                // 2. บังคับ Login
-                if (!liff.isLoggedIn()) {
-                    liff.login();
-                    return;
-                }
-
-                // ตั้งวันที่เริ่มต้นเป็นวันนี้
                 document.getElementById('start').valueAsDate = new Date();
-                
-                // 3. ดึง groupId จาก URL
                 const params = new URLSearchParams(window.location.search);
                 const gid = params.get('groupId') || 'personal';
 
-                // 4. ดึงสมาชิกจากกลุ่มนี้ใน Supabase
-                const { data: members, error } = await client
-                    .from('group_members')
-                    .select('*')
-                    .eq('group_id', gid);
+                const { data: members, error } = await client.from('group_members').select('*').eq('group_id', gid);
 
-                const select = document.getElementById('target_user');
+                const listDiv = document.getElementById('friend-list');
                 
-                if (error) {
-                    console.error("Supabase Error:", error);
-                    select.innerHTML = '<option value="">โหลดข้อมูลไม่สำเร็จ... (Error SQL)</option>';
-                } else if(members && members.length > 0) {
-                    // --- ส่วนที่ปรับปรุง: กรองรายชื่อไม่ให้ซ้ำ ---
-                    select.innerHTML = '<option value="">-- จิ้มเลือกชื่อเพื่อน --</option>';
+                if (error || !members || members.length === 0) {
+                    listDiv.innerHTML = '<div class="text-danger p-2 small">ไม่พบรายชื่อเพื่อนในกลุ่มนี้</div>';
+                } else {
+                    listDiv.innerHTML = '';
                     const seenIds = new Set();
-                    
                     members.forEach(m => {
                         if (!seenIds.has(m.user_id)) {
                             seenIds.add(m.user_id);
-                            select.innerHTML += `<option value="${m.user_id}">${m.display_name}</option>`;
+                            listDiv.innerHTML += `
+                                <div class="friend-item">
+                                    <input type="checkbox" name="friend" value="${m.user_id}" data-name="${m.display_name}">
+                                    <span>${m.display_name}</span>
+                                </div>
+                            `;
                         }
                     });
-                } else {
-                    select.innerHTML = '<option value="">ยังไม่มีข้อมูลเพื่อน (ให้เพื่อนพิมพ์ เมี๊ยว)</option>';
                 }
-
-                // ปิดตัวโหลด
                 document.getElementById('loader').style.display = 'none';
-
-            } catch (err) {
-                alert("LIFF Error: " + err.message);
-                console.error("LIFF error", err);
-            }
+            } catch (err) { alert("LIFF Error: " + err.message); }
         }
 
         function confirmSave() {
-            const select = document.getElementById('target_user');
-            const targetId = select.value;
-            const targetName = select.options[select.selectedIndex].text;
+            // ดึงเฉพาะคนที่ถูกติ๊กถูก
+            const checkedFriends = document.querySelectorAll('input[name="friend"]:checked');
+            if(checkedFriends.length === 0) return alert('เฮีย! เลือกเพื่อนอย่างน้อย 1 คนก่อนเมี๊ยว!');
+
             const goal = document.getElementById('goal').value;
             const total = document.getElementById('total').value;
             const count = document.getElementById('count').value;
@@ -143,37 +127,27 @@
             const start = document.getElementById('start').value;
             const time = document.getElementById('time').value;
 
-            // 1. เช็กความครบถ้วน
-            if(!goal || !targetId || targetId === "" || !total) {
-                return alert('เฮีย! กรอกข้อมูลและเลือกชื่อเพื่อนก่อนนะเมี๊ยว!');
-            }
+            if(!goal || !total) return alert('กรอกข้อมูลให้ครบก่อนนะเฮีย!');
 
-            // 2. เช็กว่าเปิดใน LINE ไหม
-            if (!liff.isInClient()) {
-                return alert('ต้องเปิดลิงก์นี้ในแอป LINE เท่านั้นถึงจะส่งคำสั่งได้ครับเฮีย');
-            }
+            // รวม ID และ ชื่อ เป็น Comma Separated String ✨
+            const targetIds = Array.from(checkedFriends).map(f => f.value).join(',');
+            const targetNames = Array.from(checkedFriends).map(f => f.getAttribute('data-name')).join(',');
 
-            // ปิดปุ่มกันกดซ้ำ
             const btn = document.getElementById('saveBtn');
             btn.disabled = true;
             btn.innerText = "กำลังบันทึก...";
 
-            // 3. เตรียมข้อความสั่งการบอท
-            const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetId}\nTargetName: ${targetName}`;
+            // ส่งข้อความแบบที่ Python ตัวใหม่รอรับ
+            const text = `[คำสั่งออมเงิน]\nชื่อทริป: ${goal}\nยอดรวม: ${total}\nจำนวนงวด: ${count}\nความถี่: ${unit}\nเริ่มวันที่: ${start}\nเวลาทวง: ${time}\nTargetID: ${targetIds}\nTargetName: ${targetNames}`;
             
-            // 4. ส่งข้อความกลับเข้าแชทกลุ่ม
             liff.sendMessages([{ type: 'text', text: text }])
-                .then(() => {
-                    liff.closeWindow();
-                })
+                .then(() => { liff.closeWindow(); })
                 .catch((err) => {
                     btn.disabled = false;
                     btn.innerText = "บันทึกรายการออมเมี๊ยว!";
-                    alert('ส่งไม่สำเร็จเมี๊ยว! เฮียลืมติ๊ก "chat_message.write" ใน LINE Dev หรือเปล่า? (Error: ' + err.message + ')');
+                    alert('ส่งไม่สำเร็จ: ' + err.message);
                 });
         }
-        
-        // รันฟังก์ชันหลัก
         main();
     </script>
 </body>

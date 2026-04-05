@@ -29,20 +29,20 @@ def serve_index():
 def serve_list(): 
     return send_from_directory('.', 'list.html')
 
-# --- 🚀 ระบบทวงเงิน (โหมดทดสอบ: ปรับให้ทวงเข้ากลุ่มได้) ---
+# --- 🚀 ระบบทวงเงิน (ทวงเฉพาะคนที่ status เป็น pending) ---
 @app.route('/check_bills')
 def check_bills():
     tz = pytz.timezone('Asia/Bangkok')
     now = datetime.now(tz)
     
-    # ดึงบิลที่ค้างชำระ
+    # ดึงเฉพาะบิลที่ยังไม่จ่าย
     res = supabase.table("bills").select("*").eq("status", "pending").execute()
     
-    print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] เริ่มการทดสอบทวงเงิน... พบ {len(res.data)} รายการ")
+    print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] เริ่มการทวงเงิน... พบ {len(res.data)} รายการที่ยังไม่จ่าย")
     
     for bill in res.data:
         try:
-            # ✨ จุดที่แก้ 1: เลือกส่งเข้า group_id ถ้ามี ถ้าไม่มีค่อยส่งส่วนตัว
+            # ส่งเข้ากลุ่มที่บันทึกไว้
             target_destination = bill.get('group_id') or bill.get('target_user_id') or bill['created_by']
             
             flex = {
@@ -63,9 +63,7 @@ def check_bills():
                 ]}
             }
             
-            # ส่งหาเป้าหมาย (กลุ่มหรือส่วนตัวตามที่บันทึกไว้)
-            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text="ได้เวลาออมเงิน!", contents=flex))
-            print(f"ส่งทวงบิล {bill['bill_name']} สำเร็จ!")
+            line_bot_api.push_message(target_destination, FlexSendMessage(alt_text=f"ได้เวลาออมเงินของ {bill['member_name']}!", contents=flex))
 
         except Exception as e:
             print(f"Error ทวงเงินบิล {bill.get('id')}: {e}")
@@ -89,8 +87,9 @@ def handle_postback(event):
     if params.get('action') == 'pay':
         bill_id = params['bill_id']
         bill_name = params.get('name', 'รายการออม')
+        # อัปเดตสถานะเฉพาะ ID ของบิลนั้นๆ (ซึ่งตอนนี้แยกรายคนแล้ว)
         supabase.table("bills").update({"status": "paid"}).eq("id", bill_id).execute()
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 เก่งมากเมี๊ยว! บันทึกว่าจ่าย '{bill_name}' เรียบร้อยแล้ว! 🐾"))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🎉 บันทึกว่าคุณจ่าย '{bill_name}' เรียบร้อยแล้วเมี๊ยว! 🐾"))
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -108,12 +107,7 @@ def handle_message(event):
     try:
         profile = line_bot_api.get_profile(user_id)
         display_name = profile.display_name
-        
-        supabase.table("group_members").upsert({
-            "group_id": group_id, 
-            "user_id": user_id, 
-            "display_name": display_name
-        }).execute()
+        supabase.table("group_members").upsert({"group_id": group_id, "user_id": user_id, "display_name": display_name}).execute()
     except Exception as e:
         print(f"Profile error: {e}")
 
@@ -138,20 +132,31 @@ def handle_message(event):
             unit = lines[4].split(': ')[1]
             start = lines[5].split(': ')[1]
             time = lines[6].split(': ')[1]
-            t_id = lines[7].split(': ')[1]
-            t_name = lines[8].split(': ')[1]
+            
+            # ✨ แยกรายชื่อและ ID ออกเป็น List (ตัดช่องว่างให้ด้วย)
+            t_ids = [i.strip() for i in lines[7].split(': ')[1].split(',')]
+            t_names = [n.strip() for n in lines[8].split(': ')[1].split(',')]
 
             per_person = round(total / count, 2)
             
-            data = {
-                "bill_name": goal, "total_amount": total, "per_person": per_person,
-                "status": "pending", "created_by": user_id, "freq_unit": unit,
-                "next_due": start, "remind_time": time, "target_user_id": t_id, 
-                "member_name": t_name,
-                "group_id": group_id  # ✨ จุดที่แก้ 2: เพิ่มการบันทึก group_id ลงฐานข้อมูล
-            }
-            supabase.table("bills").insert(data).execute()
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' ของ {t_name} เรียบร้อย! เดี๋ยวคุ้มมงจัดการทวงให้ในกลุ่มนี้เลยเมี๊ยว!"))
+            # 🌀 Loop สร้างบิลแยก "1 แถว ต่อ 1 คน"
+            for target_id, target_name in zip(t_ids, t_names):
+                data = {
+                    "bill_name": goal, 
+                    "total_amount": total, 
+                    "per_person": per_person,
+                    "status": "pending", 
+                    "created_by": user_id, 
+                    "freq_unit": unit,
+                    "next_due": start, 
+                    "remind_time": time, 
+                    "target_user_id": target_id, 
+                    "member_name": target_name,
+                    "group_id": group_id
+                }
+                supabase.table("bills").insert(data).execute()
+            
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ บันทึกบิล '{goal}' แยกรายคนให้ {len(t_ids)} ท่านเรียบร้อย! ใครยังไม่จ่าย คุ้มมงจะตามทวงเป็นรายบุคคลในกลุ่มนี้ให้เองเมี๊ยว!"))
         except Exception as e:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"เกิดข้อผิดพลาด: {str(e)}"))
 
