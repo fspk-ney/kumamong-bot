@@ -38,7 +38,7 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label"> ชื่อรายการออม (เป้าหมาย)</label>
+                <label class="form-label"> ชื่อรายการออม (ทริป/เป้าหมาย)</label>
                 <input type="text" id="goal" class="form-control" placeholder="เช่น ทริปญี่ปุ่น, ค่าบ้าน">
             </div>
 
@@ -149,7 +149,6 @@
                 targetNames: targetNames,
                 groupId: gid,
                 userId: liff.getContext()?.userId || ''
-                replyToken: liff.getContext()?.replyToken,
             };
 
             fetch("https://kumamong-bot.onrender.com/create_saving_api", { 
@@ -159,18 +158,7 @@
             })
             .then(response => {
                 if (response.ok) {
-                    // 🐾 บันทึกสำเร็จ: สั่งให้ LINE ส่งข้อความแทนตัวเรา (ฟรี ไม่ใช้โควตาบอท)
-                    liff.sendMessages([
-                        {
-                            type: 'text',
-                            text: `🪙 บันทึกรายการ "${goal}" เรียบร้อยแล้วครับ!\n💰 ยอดรวม: ${Number(total).toLocaleString()} บาท\n👥 สมาชิก: ${targetNames}\n\nมะมงรับทราบ! เดี๋ยวรอเช็กยอดในหน้าสรุปนะครับ`
-                        }
-                    ]).then(() => {
-                        liff.closeWindow(); 
-                    }).catch((err) => {
-                        console.error("ส่งแชทไม่สำเร็จ:", err);
-                        liff.closeWindow(); // ถ้าส่งแชทไม่ได้ อย่างน้อยก็ปิดหน้าจอ
-                    });
+                    liff.closeWindow(); 
                 } else {
                     throw new Error('บันทึกไม่สำเร็จ');
                 }
